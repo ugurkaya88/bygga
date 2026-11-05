@@ -335,6 +335,7 @@ export function buildCustom(b: PlanBuilder, s: ProductSpec) {
     b.step(
       {
         title: st.title,
+        scene: st.scene,
         detail: st.detail,
         tools: [...tools],
         people: st.people ?? 1,
@@ -378,8 +379,16 @@ export function buildCustom(b: PlanBuilder, s: ProductSpec) {
         const inStep: Node[] = [];
         const waiting: Node[] = [];
         const toWait = (st.wait ?? []).map((id) => nodes.get(id)).filter((n): n is Node => !!n && !isPlaced(n) && !aside.has(n) && !adds.includes(n) && addedAfter(n, si));
-        const fresh = [...new Set([...hosts, ...toWait])].filter((n) => !aside.has(n));
-        if (fresh.length) {
+        // parts the recipe lays out itself (flat on the floor, side by side) wait there until a later step adds them
+        const laid = Object.keys(st.lay ?? {}).map((id) => nodes.get(id)).filter((n): n is Node => !!n && !isPlaced(n) && !adds.includes(n));
+        const fresh = [...new Set([...hosts, ...toWait])].filter((n) => !aside.has(n) && !laid.includes(n));
+        if (laid.length || fresh.length) {
+          for (const n of laid) {
+            const l = st.lay![n.id];
+            b.stage(n.key, l.pos, l.rot ?? b.partItem(n.key).final.rot, st.from?.[n.id]);
+            aside.add(n);
+            waiting.push(n);
+          }
           for (const n of fresh) {
             const off = st.from?.[n.id] ?? approach(n, [...placed, ...inStep], pose);
             if (toWait.includes(n)) {

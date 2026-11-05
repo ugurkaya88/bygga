@@ -207,6 +207,8 @@ export interface CustomStep {
   warnings?: WarnId[];
   from?: Record<string, Vec3>; // part id -> offset it arrives from (mm), when the guess isn't right
   wait?: string[]; // parts that take fittings in this step but are joined in a later one: shown beside the build until then
+  lay?: Record<string, { pos: Vec3; rot?: Vec3 }>; // parts shown at this place and turn (scene frame, mm and radians) from this step until a later step adds them: laid flat on the floor, side by side
+  scene?: string; // a step drawn on its own, apart from the build (loose parts laid out); parts staged in it stay hidden in other scenes until they are added
   repeat?: number; // "do this twice": the same step for the other side
   kind?: StepKind;
   check?: "square";
