@@ -1354,7 +1354,8 @@
   box-shadow: inset 0 0 0 1.5px var(--ink);
 }
 .prow.ok {
-  background: #fffcf0;
+  background: #effaf1;
+  box-shadow: inset 0 0 0 1.5px #b7e2c2;
 }
 .prow.miss {
   background: var(--miss-soft);
@@ -1417,7 +1418,7 @@
   width: 24px;
   height: 24px;
   border-radius: 50%;
-  background: var(--ink);
+  background: #23914a;
   color: #fff;
   display: grid;
   place-items: center;

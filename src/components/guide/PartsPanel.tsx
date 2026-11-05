@@ -11,8 +11,8 @@ import { playTick } from "./sound";
 import { getPref, setPref } from "@/lib/store";
 
 /**
- * Parts are an exception check too: tap only what is missing.
- * "Everything's here" ticks the whole list in a quick cascade.
+ * Parts are ticked off as they are found: a tick means "I have it", in green.
+ * "Everything's here" ticks the rest in a quick cascade; whatever is left unticked on Continue counts as missing.
  */
 export default function PartsPanel({
   plan,
@@ -38,16 +38,26 @@ export default function PartsPanel({
   const [actual, setActual] = useState(false);
   const [ppm, setPpm] = useState(() => getPref("ppm", 96 / 25.4));
   const [calib, setCalib] = useState(false);
-  const [ok, setOk] = useState<Set<string>>(new Set());
+  // what the person has found; a saved build with missing parts starts with the rest ticked
+  const [ok, setOk] = useState<Set<string>>(() => (missing.size ? new Set(ids.filter((i) => !missing.has(i))) : new Set()));
   const [going, setGoing] = useState(false);
   const timers = useRef<ReturnType<typeof setTimeout>[]>([]);
   useEffect(() => () => timers.current.forEach(clearTimeout), []);
-  const nMissing = ids.filter((i) => missing.has(i)).length;
+  const nHave = ids.filter((i) => ok.has(i)).length;
+  const nMissing = nHave > 0 ? ids.length - nHave : 0;
+  const partial = nHave > 0 && nHave < ids.length;
 
   const confirm = () => {
     if (going) return;
     setGoing(true);
-    const list = ids.filter((i) => !missing.has(i));
+    if (partial) {
+      // continue with what is ticked: the rest is missing
+      for (const id of ids) if (ok.has(id) === missing.has(id)) onToggle(id);
+      timers.current.push(setTimeout(onNext, 300));
+      return;
+    }
+    for (const id of ids) if (missing.has(id)) onToggle(id);
+    const list = ids.filter((i) => !ok.has(i));
     const gap = Math.min(70, 900 / Math.max(1, list.length));
     list.forEach((id, i) =>
       timers.current.push(
@@ -62,23 +72,27 @@ export default function PartsPanel({
   };
 
   const row = (id: string, i: number, content: React.ReactNode, qty: number) => {
-    const miss = missing.has(id);
     const good = ok.has(id);
     return (
       <motion.button
         key={id}
-        className={"prow" + (miss ? " miss" : "") + (good ? " ok" : "")}
+        className={"prow" + (good ? " ok" : "")}
         onClick={() => {
           if (going) return;
           haptic();
-          onToggle(id);
+          setOk((s) => {
+            const n = new Set(s);
+            if (n.has(id)) n.delete(id);
+            else n.add(id);
+            return n;
+          });
         }}
         onMouseEnter={() => onHover([id])}
         onMouseLeave={() => onHover(null)}
         onFocus={() => onHover([id])}
         onBlur={() => onHover(null)}
-        aria-pressed={miss}
-        aria-label={`${miss ? "Marked missing" : "Mark missing"}`}
+        aria-pressed={good}
+        aria-label={good ? "Ticked: I have it" : "Tick when you have it"}
         initial={{ opacity: 0, x: 12 }}
         animate={{ opacity: 1, x: 0 }}
         transition={{ delay: Math.min(0.5, 0.03 * i), duration: 0.35, ease: [0.22, 1, 0.36, 1] }}
@@ -87,11 +101,7 @@ export default function PartsPanel({
         <span className="pqty">{qty}&times;</span>
         <span className="pstate">
           <AnimatePresence mode="popLayout" initial={false}>
-            {miss ? (
-              <motion.span key="m" className="pmiss" initial={{ scale: 0.6, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.6, opacity: 0 }}>
-                Missing
-              </motion.span>
-            ) : good ? (
+            {good ? (
               <motion.span key="o" className="pok" initial={{ scale: 0 }} animate={{ scale: 1 }} transition={{ type: "spring", stiffness: 600, damping: 20 }}>
                 <ICheck size={15} strokeWidth={3} />
               </motion.span>
@@ -110,7 +120,7 @@ export default function PartsPanel({
         <header className="pane-head">
           <p className="eyebrow">Unpack</p>
           <h2>Check the box</h2>
-          <p className="sub">Lay everything out like the drawing. Tap anything that&apos;s missing.</p>
+          <p className="sub">Lay everything out like the drawing. Tick each one as you find it.</p>
         </header>
 
         <h3 className="section-title">
@@ -179,9 +189,9 @@ export default function PartsPanel({
           {nMissing > 0 && (
             <motion.div className="missbox" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 8 }}>
               <b>
-                {nMissing} {nMissing === 1 ? "thing" : "things"} missing
+                {nMissing} not ticked yet
               </b>
-              <span>You can still build the steps that don&apos;t need {nMissing === 1 ? "it" : "them"}. Spare fittings are usually free at IKEA.</span>
+              <span>Anything left unticked counts as missing. You can still build the steps that don&apos;t need {nMissing === 1 ? "it" : "them"}. Spare fittings are usually free at IKEA.</span>
               <button className="btn link inline" onClick={onMissingHelp}>
                 How to get spare parts
               </button>
@@ -194,7 +204,7 @@ export default function PartsPanel({
           <IArrowLeft />
         </button>
         <button className={"btn primary big" + (going ? " going" : "")} onClick={confirm}>
-          <span>{going ? "All set" : nMissing ? "Continue anyway" : "Everything's here"}</span>
+          <span>{going ? "All set" : partial ? `Continue with ${nMissing} missing` : "Everything's here"}</span>
           <IArrowRight />
         </button>
       </div>
