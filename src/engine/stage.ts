@@ -850,12 +850,13 @@ export class Stage {
         h.inner.position.set(0, it.travel * (1 - e), 0);
         let ang = (it.spin ?? 0) * Math.PI * 2 * e;
         if (it.turn) ang += it.turn * easeInOut(clamp01((t - it.delay - HW_DUR) / CAM_TURN));
-        h.inner.quaternion.setFromAxisAngle(Y, ang);
+        // the holder's -Y points into the material, so turning clockwise as seen from outside is a negative angle about Y
+        h.inner.quaternion.setFromAxisAngle(Y, -ang);
         const op = clamp01((t - it.delay) / 0.15) * fadeOut;
         this.styleDrawable(h.d, { opacity: op, ink: true, tint: 0, width: 1.6 });
       } else {
         h.inner.position.set(0, 0, 0);
-        h.inner.quaternion.setFromAxisAngle(Y, (it.spin ?? 0) * Math.PI * 2 + (it.turn ?? 0));
+        h.inner.quaternion.setFromAxisAngle(Y, -((it.spin ?? 0) * Math.PI * 2 + (it.turn ?? 0)));
         const op = m.kind === "intro" ? clamp01((t - this.stepEnd + 0.7) / 0.5) : 1;
         const lit = this.highlight?.has(it.ref) ?? false;
         this.styleDrawable(h.d, { opacity: op, ink: isNew || lit || m.kind !== "step", tint: lit ? 0.8 : 0, width: lit ? 1.7 : 1.25 });

@@ -476,6 +476,7 @@ interface Fit extends FitOpts {
 interface Group {
   def: HwDef;
   fits: Fit[];
+  exact?: boolean; // placed by hand with `at`: emitted where the recipe says, never nudged
 }
 interface Ctx {
   center: Vec3;
@@ -494,7 +495,7 @@ function planFits(f: CustomFix, contacts: Contact[], fresh: Node[], placed: Node
       const mate = f.mate ? nodes.get(f.mate) : undefined;
       return { on: host.key, host, at, dir, mate: mate?.key, twist: f.twist, hole: f.kind === "nail" || f.kind === "glide" || f.kind === "clip" ? false : undefined };
     });
-    return [{ def: defFor(f), fits }];
+    return [{ def: defFor(f), fits, exact: true }];
   }
   const count = Math.min(48, Math.max(1, Math.round(f.count)));
   const to = new Set(f.to ?? []);
@@ -646,7 +647,7 @@ function emit(b: PlanBuilder, groups: Group[], used: Vec3[]) {
       const at: Vec3 = [...o.at];
       const free = (p: Vec3) => used.every((u) => Math.hypot(u[0] - p[0], u[1] - p[1], u[2] - p[2]) > 22);
       // washers, nuts and caps go on the bolt already there, so they share its point
-      if (!STACKS.includes(g.def.kind) && !free(at)) {
+      if (!g.exact && !STACKS.includes(g.def.kind) && !free(at)) {
         const axis = slide !== undefined ? [slide] : [0, 1, 2].filter((k) => !o.dir[k]);
         search: for (const step of [36, -36, 72, -72]) {
           for (const k of axis) {
