@@ -40,6 +40,9 @@ import { track } from "@vercel/analytics";
 import { SCAN_ENABLED } from "@/lib/site";
 import { LOCALE, lower, manualSearchUrl, t, tOr, upper } from "@/lib/i18n";
 
+/** The spoken lines are English recordings, so the voice is offered only in English for now. */
+const VOICE = LOCALE === "en";
+
 type Via = "catalog" | "ai" | "guess" | "scan";
 
 export default function GuideApp({ slug, query, step, kind }: { slug: string; query?: string; step?: number; kind?: string }) {
@@ -726,7 +729,7 @@ function Guide({ plan, slug, via, ai, startStep, onOwnSteps }: { plan: Plan; slu
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       const t = e.target as HTMLElement;
-      if (e.key.toLowerCase() !== "v" || e.metaKey || e.ctrlKey || e.repeat || phase !== "steps" || help || overview || askKey || t?.tagName === "INPUT" || t?.tagName === "TEXTAREA") return;
+      if (!VOICE || e.key.toLowerCase() !== "v" || e.metaKey || e.ctrlKey || e.repeat || phase !== "steps" || help || overview || askKey || t?.tagName === "INPUT" || t?.tagName === "TEXTAREA") return;
       // the key field opens focused: the "v" mustn't land in it
       e.preventDefault();
       if (voiceOn) stopVoice();
@@ -806,7 +809,7 @@ function Guide({ plan, slug, via, ai, startStep, onOwnSteps }: { plan: Plan; slu
           >
             {sound ? <ISound /> : <ISoundOff />}
           </button>
-          {phase === "steps" && (
+          {phase === "steps" && VOICE && (
             <button className={"voice-btn" + (voiceOn ? " on" : "")} onClick={() => (voiceOn ? stopVoice() : turnOnVoice())} aria-pressed={voiceOn} aria-label={voiceOn ? t("guide.voiceTurnOff") : t("guide.voiceTurnOn")} data-tip={t("guide.voiceTip")}>
               <IMic size={18} />
               <span>{voiceOn ? t("guide.voiceOn") : t("guide.voice")}</span>
@@ -1028,7 +1031,7 @@ function Guide({ plan, slug, via, ai, startStep, onOwnSteps }: { plan: Plan; slu
                   onNext={next}
                   onBack={back}
                   onHover={setHl}
-                  offer={!voiceOn && offer && (step === 0 || usedVoice) ? { again: usedVoice, listen: canListen || (mounted && micSupported() && !skippedKey()), onStart: turnOnVoice, onDismiss: () => setOffer(false) } : null}
+                  offer={VOICE && !voiceOn && offer && (step === 0 || usedVoice) ? { again: usedVoice, listen: canListen || (mounted && micSupported() && !skippedKey()), onStart: turnOnVoice, onDismiss: () => setOffer(false) } : null}
                 />
               )}
               {phase === "done" && <DonePanel plan={plan} slug={slug} finish={finish} onReview={back} />}
