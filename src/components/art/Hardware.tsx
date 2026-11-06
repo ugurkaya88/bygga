@@ -231,6 +231,39 @@ function draw(kind: HwKind, len: number, dia: number): Drawn {
           </g>
         ),
       };
+    case "hingePlate":
+      // seen from the front: screw wings across, the raised body the hinge clips onto, its adjusting screw
+      return {
+        w: 40,
+        h: 40,
+        scalable: true,
+        node: (
+          <g>
+            <rect x={0} y={-6} width={40} height={12} rx={4} fill={METAL} {...stroke} />
+            <rect x={13.5} y={-20} width={13} height={40} rx={3} fill={METAL} {...stroke} />
+            <circle cx={5.5} cy={0} r={2.2} fill="#fff" {...stroke} />
+            <circle cx={34.5} cy={0} r={2.2} fill="#fff" {...stroke} />
+            <circle cx={20} cy={8} r={3} fill={METAL} {...stroke} />
+            <path d="M18.2 8 H21.8 M20 6.2 V9.8" {...fine} />
+          </g>
+        ),
+      };
+    case "cornerFoot":
+      // from below: a right-angled plastic foot with its three screw holes
+      return {
+        w: 50,
+        h: 50,
+        scalable: true,
+        node: (
+          <g>
+            <path d="M0 -25 L0 25 L50 25 Z" fill={PLASTIC} {...stroke} />
+            <path d="M5 -13 L5 20 L38 20 Z" fill="none" {...fine} />
+            {[[5.5, -10], [5.5, 18.5], [35, 18.5]].map(([x, y]) => (
+              <circle key={x + "," + y} cx={x + 3} cy={y - 1.5} r={2} fill="#fff" {...stroke} />
+            ))}
+          </g>
+        ),
+      };
     case "glide":
       return { w: 20, h: 10, scalable: true, node: <g><path d="M0 -1 V2 A10 3.6 0 0 0 20 2 V-1" fill={PLASTIC} {...stroke} /><ellipse cx={10} cy={-1} rx={10} ry={3.6} fill={PLASTIC} {...stroke} /></g> };
     case "plug": {

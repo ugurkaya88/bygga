@@ -26,7 +26,7 @@ interface Contact {
 }
 
 const AXES = [0, 1, 2] as const;
-const PRE: HwKind[] = ["dowel", "camScrew", "pin", "legScrew", "plate"];
+const PRE: HwKind[] = ["dowel", "camScrew", "pin", "legScrew", "plate", "hingePlate"];
 
 export function boxOf(p: { size: Vec3; pos: Vec3; rot?: Vec3 }): Box {
   if (p.rot && p.rot.some((r) => r)) {
@@ -163,6 +163,8 @@ function defFor(f: CustomFix, thick?: number): HwDef {
         return HW.handle;
       case "hinge":
         return HW.hinge;
+      case "hingePlate":
+        return HW.hingePlate;
       case "glide":
         return HW.glide;
       case "clip":
@@ -181,6 +183,8 @@ function defFor(f: CustomFix, thick?: number): HwDef {
         return HW.angle;
       case "foot":
         return HW.foot;
+      case "cornerFoot":
+        return HW.cornerFoot;
       case "cap":
         return HW.cap;
       case "spacer":
@@ -231,6 +235,7 @@ const KIND_OF: Partial<Record<HwKind, StepKind>> = {
   legScrew: "legs",
   pin: "shelves",
   hinge: "hinges",
+  hingePlate: "hinges",
   knob: "screws",
   handle: "screws",
   bracket: "anchor",
@@ -239,6 +244,7 @@ const KIND_OF: Partial<Record<HwKind, StepKind>> = {
   nut: "bolts",
   stud: "bolts",
   foot: "legs",
+  cornerFoot: "legs",
 };
 
 const TOOLS_OF: Partial<Record<HwKind, ToolId>> = {
@@ -248,6 +254,8 @@ const TOOLS_OF: Partial<Record<HwKind, ToolId>> = {
   nail: "hammer",
   bolt: "allen",
   hinge: "screwdriver",
+  hingePlate: "screwdriver",
+  cornerFoot: "screwdriver",
   knob: "screwdriver",
   handle: "screwdriver",
   bracket: "drill",
@@ -493,7 +501,7 @@ function planFits(f: CustomFix, contacts: Contact[], fresh: Node[], placed: Node
     const fits: Fit[] = f.at.map((at) => {
       const host = (f.on && nodes.get(f.on)) || nearest(pool.length ? pool : [...nodes.values()], at);
       const mate = f.mate ? nodes.get(f.mate) : undefined;
-      return { on: host.key, host, at, dir, mate: mate?.key, twist: f.twist, hole: f.kind === "nail" || f.kind === "glide" || f.kind === "clip" ? false : undefined };
+      return { on: host.key, host, at, dir, mate: mate?.key, twist: f.twist, hole: f.kind === "nail" || f.kind === "glide" || f.kind === "cornerFoot" || f.kind === "clip" ? false : undefined };
     });
     return [{ def: defFor(f), fits, exact: true }];
   }
@@ -580,8 +588,20 @@ function planFits(f: CustomFix, contacts: Contact[], fresh: Node[], placed: Node
       }
       break;
     }
-    case "glide": {
-      // felt pads go under the corners of the whole footprint
+    case "hingePlate": {
+      // on the inner face of the part the door hangs on, 37 mm back from its front edge, level with each hinge
+      for (const { c, k } of share(count, list)) {
+        const door = thinner(c);
+        const side = otherOf(c, door);
+        const right = mid(side.box, 0) > ctx.center[0];
+        const x = right ? side.box.min[0] : side.box.max[0];
+        for (const q of along(c, Math.max(2, k), { inset: 0.12 }).slice(0, k)) one(side, { at: [x, q[1], side.box.max[2] - 37], dir: [right ? 1 : -1, 0, 0], hole: false });
+      }
+      break;
+    }
+    case "glide":
+    case "cornerFoot": {
+      // felt pads and corner feet go under the corners of the whole footprint
       const floor = [...fresh, ...placed].filter((n, i, a) => n.box.min[1] < 3 && a.indexOf(n) === i);
       const corners: [number, number][] = [
         [ctx.lo[0], ctx.lo[2]],

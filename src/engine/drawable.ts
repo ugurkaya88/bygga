@@ -251,14 +251,44 @@ export function hwDrawable(kind: HwKind, len: number, dia: number) {
       addSolid(d, `hd:bar:${len}`, () => new THREE.CylinderGeometry(6, 6, len + 24, 14).rotateZ(Math.PI / 2), metal, { hull: "radial", position: [0, 30, 0] });
       break;
     case "hinge":
+      // a cup hinge as it hangs: the cup sunk in the door, screw wings along the edge on the side away from it,
+      // the arm standing into the cabinet along the side panel's inner face (local -x is the hinged edge)
       addSolid(d, "hg:cup", cyl(17.5, 12, 24), metal, { hull: "cyl", position: [0, -6, 0] });
-      addSolid(d, "hg:flange", () => new THREE.BoxGeometry(52, 1.6, 14), metal, { position: [0, 0.8, 0] });
-      addSolid(d, "hg:arm", () => new THREE.BoxGeometry(12, 40, 11), metal, { position: [4, 20, 0] });
-      addSolid(d, "hg:plate", () => new THREE.BoxGeometry(4, 18, 40), metal, { position: [-4, 34, 0] });
+      addSolid(d, "hg:rim", cyl(18.5, 1.2, 24), metal, { hull: "cyl", position: [0, 0.6, 0] });
+      addSolid(d, "hg:flange", () => new THREE.BoxGeometry(12, 1.6, 52), metal, { position: [6, 0.8, 0] });
+      addSolid(d, "hg:arm", () => new THREE.BoxGeometry(9, 42, 16), metal, { position: [1.5, 21, 0] });
+      for (const y of [16, 30]) addSolid(d, "hg:adj", cyl(3, 1.2, 14), metal, { hull: "cyl", position: [6.6, y, 0], rotation: [0, 0, Math.PI / 2] });
+      addSolid(d, "hg:plate", () => new THREE.BoxGeometry(3, 16, 38), metal, { position: [-2, 36, 0] });
       break;
     case "glide":
       addSolid(d, "glide", cyl(10, 4, 18), plastic, { hull: "cyl", position: [0, 2, 0] });
       break;
+    case "hingePlate":
+      // a clip-on mounting plate seen from the front: screw wings across, the raised body the hinge arm clips onto along z
+      addSolid(d, `hp:wing:${dia}`, () => new THREE.BoxGeometry(dia, 2, 12), metal, { position: [0, 1, 0] });
+      addSolid(d, `hp:body:${len}`, () => new THREE.BoxGeometry(13, len - 1.2, 36), metal, { position: [0, (len - 1.2) / 2, 0] });
+      addSolid(d, "hp:screw", cyl(3, 1.2, 14), metal, { hull: "cyl", position: [0, len - 0.6, 6] });
+      break;
+    case "cornerFoot": {
+      // a right-angled plastic corner foot under a board: the right angle at local -x -z, centred on its centroid
+      const a = dia;
+      addSolid(
+        d,
+        `cf:${len}:${a}`,
+        () => {
+          const sh = new THREE.Shape();
+          sh.moveTo(-a / 3, a / 3);
+          sh.lineTo((2 * a) / 3, a / 3);
+          sh.lineTo(-a / 3, (-2 * a) / 3);
+          sh.closePath();
+          const g = new THREE.ExtrudeGeometry(sh, { depth: len, bevelEnabled: false });
+          g.rotateX(-Math.PI / 2);
+          return g;
+        },
+        plastic,
+      );
+      break;
+    }
     case "plug":
       addSolid(d, `plug:${len}`, cyl(r, len, 12), plastic, { hull: "cyl", position: [0, -len / 2, 0] });
       addSolid(d, "plug:lip", cyl(r + 1.5, 1.5, 14), plastic, { hull: "cyl", position: [0, 0.75, 0] });

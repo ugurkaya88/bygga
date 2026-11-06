@@ -46,6 +46,7 @@ export const HW = {
   knob: { kind: "knob", len: 25, dia: 30 },
   handle: { kind: "handle", len: 128, dia: 12 },
   hinge: { kind: "hinge", len: 50, dia: 35 },
+  hingePlate: { kind: "hingePlate", len: 10, dia: 40 },
   glide: { kind: "glide", len: 4, dia: 20 },
   wallScrew: { kind: "screw", len: 50, dia: 5, notIncluded: true },
   plug: { kind: "plug", len: 35, dia: 8, notIncluded: true },
@@ -64,6 +65,7 @@ export const HW = {
   clamp: { kind: "clamp", len: 44, dia: 18 },
   angle: { kind: "angle", len: 30, dia: 24 },
   foot: { kind: "foot", len: 30, dia: 32 },
+  cornerFoot: { kind: "cornerFoot", len: 22, dia: 50 },
   cap: { kind: "cap", len: 2, dia: 14 },
   spacer: { kind: "spacer", len: 20, dia: 16 },
 } satisfies Record<string, HwDef>;
@@ -83,6 +85,7 @@ const HW_NAMES: Record<HwKind, string> = {
   knob: "Knob",
   handle: "Handle",
   hinge: "Hinge",
+  hingePlate: "Hinge plate",
   glide: "Felt pad",
   plug: "Wall plug",
   castor: "Castor",
@@ -99,6 +102,7 @@ const HW_NAMES: Record<HwKind, string> = {
   clamp: "Clamp",
   angle: "Angle bracket",
   foot: "Foot",
+  cornerFoot: "Corner foot",
   cap: "Cover cap",
   spacer: "Wall spacer",
 };
@@ -495,6 +499,7 @@ function defaultTravel(def: HwDef) {
     case "knob":
     case "handle":
     case "foot":
+    case "cornerFoot":
       return 40;
     case "nut":
     case "washer":

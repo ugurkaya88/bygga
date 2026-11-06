@@ -193,7 +193,10 @@ export interface CustomFix {
   dir?: Vec3;
   on?: string;
   mate?: string;
-  twist?: number; // radians about the way it goes in (an angle bracket's tab lying flat)
+  // radians about the way it goes in (an angle bracket's tab lying flat). A hinge's arm leans to local -x, its hinged
+  // edge: with dir [0, 0, 1] that is world -x, so a door hung on its right edge takes twist pi. A cornerFoot's right
+  // angle points to local -x -z from its centroid (world +x -z with dir [0, 1, 0]); twist pi/2 turns it to -x -z.
+  twist?: number;
 }
 
 export interface CustomStep {
@@ -312,6 +315,7 @@ export type HwKind =
   | "knob"
   | "handle"
   | "hinge"
+  | "hingePlate"
   | "glide"
   | "plug"
   | "castor"
@@ -328,6 +332,7 @@ export type HwKind =
   | "clamp"
   | "angle"
   | "foot"
+  | "cornerFoot"
   | "cap"
   | "spacer";
 
