@@ -421,7 +421,8 @@ export function buildCustom(b: PlanBuilder, s: ProductSpec) {
 
         b.stagger(adds.length > 3 ? 0.18 : 0.26);
         for (const n of adds) {
-          b.add(n.key, st.from?.[n.id] ?? approach(n, [...placed, ...inStep], pose));
+          // a part that waited beside the build is lifted over to its way in first, then goes in along it
+          b.add(n.key, st.from?.[n.id] ?? approach(n, [...placed, ...inStep], pose), { lift: aside.has(n) || undefined });
           inStep.push(n);
         }
         if (adds.length) b.then(0.12);

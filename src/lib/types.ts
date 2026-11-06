@@ -362,6 +362,7 @@ export interface PartState {
   rot: Vec3;
   from?: Vec3; // approach offset in scene frame
   spin?: number; // revolutions about local Y while approaching
+  lift?: boolean; // moves from where it waited to `from` off its place first, then in along it (a top lifted over and lowered on)
   delay: number;
 }
 

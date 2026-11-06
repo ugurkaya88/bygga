@@ -36,6 +36,7 @@ const clamp01 = (x: number) => Math.max(0, Math.min(1, x));
 const poseDur = (angle: number) => Math.min(1.2, Math.max(0.6, 0.45 + angle * 0.32));
 
 const PART_DUR = 0.95;
+const LIFT = 0.6; // extra seconds for a part lifted over from where it waited
 const HW_DUR = 0.6;
 const CAM_TURN = 0.62;
 const EL_MAX = 1.5; // camera elevation limit either way (radians), short of straight up or down
@@ -539,7 +540,7 @@ export class Stage {
           off: st.from ? new THREE.Vector3(...st.from) : new THREE.Vector3(),
         });
         this.frameLocal.push(...this.corners(p, st.pos, st.rot));
-        if (st.step === s) end = Math.max(end, st.delay + PART_DUR + (st.spin ? 0.4 : 0));
+        if (st.step === s) end = Math.max(end, st.delay + PART_DUR + (st.spin ? 0.4 : 0) + (st.lift ? LIFT : 0));
       }
       let first: HNode | undefined;
       for (const h of this.hws) {
@@ -762,10 +763,18 @@ export class Stage {
         visibleParts.add(p);
         const isNew = st.step === sIdx;
         if (isNew) {
-          const k = clamp01((t - st.delay) / (PART_DUR + (st.spin ? 0.4 : 0)));
+          const k = clamp01((t - st.delay) / (PART_DUR + (st.spin ? 0.4 : 0) + (st.lift ? LIFT : 0)));
           const e = easeLand(k);
           let op = easeOut(clamp01((t - st.delay) / 0.3)) * fadeOut;
-          if (x.from) {
+          if (x.from && st.lift && x.off.lengthSq() > 1) {
+            // over to the start of its way in, then in along it
+            const k1 = clamp01(k / 0.55), k2 = clamp01((k - 0.55) / 0.45);
+            tmpV.copy(fin.p).add(x.off);
+            if (k < 0.55) node.position.lerpVectors(x.from.p, tmpV, easeInOut(k1));
+            else node.position.lerpVectors(tmpV, fin.p, easeInOut(k2));
+            node.quaternion.slerpQuaternions(x.from.q, fin.q, easeInOut(k1));
+            op = 1;
+          } else if (x.from) {
             node.position.lerpVectors(x.from.p, fin.p, easeInOut(k));
             node.quaternion.slerpQuaternions(x.from.q, fin.q, easeInOut(k));
             op = 1;
@@ -1113,7 +1122,7 @@ export class Stage {
         const { st, prev } = this.stateAt(p, m.index);
         if (!st || st.step !== m.index) continue;
         const akey = st.from ? st.from.join(",") + "@" + st.delay.toFixed(2) : "";
-        if (st.from && !(prev && prev.scene === st.scene) && !arrowKeys.has(akey)) {
+        if (st.from && (st.lift || !(prev && prev.scene === st.scene)) && !arrowKeys.has(akey)) {
           arrowKeys.add(akey);
           const fin = new THREE.Vector3(...st.pos);
           const from = new THREE.Vector3(...st.from);

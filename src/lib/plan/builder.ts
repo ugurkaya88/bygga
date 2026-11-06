@@ -100,7 +100,7 @@ export function hwSpecText(kind: HwKind, len: number, dia: number) {
   }
 }
 
-const DUR = { part: 0.95, hw: 0.6 };
+const DUR = { part: 0.95, hw: 0.6, lift: 0.6 }; // lift: the extra for a part lifted over from where it waited (stage.ts LIFT)
 
 export interface StepDef {
   title: string;
@@ -273,10 +273,10 @@ export class PlanBuilder {
   }
 
   /** Part reaches its assembled position in this step. */
-  add(key: string, from?: Vec3, o: { spin?: number } = {}) {
+  add(key: string, from?: Vec3, o: { spin?: number; lift?: boolean } = {}) {
     const it = this.partItem(key);
     const s = this.step_;
-    it.states.push({ step: s.n, scene: s.scene, pos: it.final.pos, rot: it.final.rot, from, spin: o.spin, delay: this.slot(DUR.part + (o.spin ? 0.4 : 0)) });
+    it.states.push({ step: s.n, scene: s.scene, pos: it.final.pos, rot: it.final.rot, from, spin: o.spin, lift: o.lift, delay: this.slot(DUR.part + (o.spin ? 0.4 : 0) + (o.lift ? DUR.lift : 0)) });
   }
 
   /** Part is shown somewhere else (laid flat, upside down...) from this step until it is added. */
