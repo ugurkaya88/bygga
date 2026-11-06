@@ -216,6 +216,7 @@ export interface CustomStep {
   kind?: StepKind;
   check?: "square";
   wall?: boolean;
+  view?: StepView; // the side the step is seen from; when left out, a step whose fittings mostly go in through the back of the upright product is seen from behind
 }
 
 export interface CustomParams {
@@ -452,8 +453,11 @@ export interface Step {
   check?: "square";
   wall?: boolean;
   quiet?: boolean;
+  view?: StepView; // "back": the camera turns round to the back for this step
   minutes: number;
 }
+
+export type StepView = "front" | "back";
 
 export interface ToolNeed {
   id: ToolId;

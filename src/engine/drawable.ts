@@ -200,9 +200,10 @@ export function hwDrawable(kind: HwKind, len: number, dia: number) {
       addSolid(d, "cs:head", () => new THREE.SphereGeometry(3.6, 14, 10), metal, { hull: "radial", position: [0, 19.5, 0], edges: false });
       break;
     case "cam": {
-      addSolid(d, "cam:body", cyl(7.4, 12.4, 22), metal, { hull: "cyl", position: [0, -6.2, 0] });
-      addSolid(d, "cam:slot", () => new THREE.BoxGeometry(9, 0.8, 1.6), FACE.hwMetal, { position: [0, 0.4, 0] });
-      addSolid(d, "cam:arrow", () => new THREE.ConeGeometry(1.4, 2.6, 3), FACE.hwMetal, { position: [5.2, 0.4, 0], rotation: [0, 0, -Math.PI / 2], edges: true });
+      // the face stands 0.4 mm proud of the board, so the two never share a plane and flicker
+      addSolid(d, "cam:body", cyl(7.4, 12.8, 32), metal, { hull: "cyl", position: [0, -6.0, 0] });
+      addSolid(d, "cam:slot", () => new THREE.BoxGeometry(9, 0.8, 1.6), FACE.hwMetal, { position: [0, 0.8, 0] });
+      addSolid(d, "cam:arrow", () => new THREE.ConeGeometry(1.4, 2.6, 3), FACE.hwMetal, { position: [5.2, 0.8, 0], rotation: [0, 0, -Math.PI / 2], edges: true });
       break;
     }
     case "screw": {

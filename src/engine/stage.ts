@@ -37,6 +37,7 @@ const poseDur = (angle: number) => Math.min(1.2, Math.max(0.6, 0.45 + angle * 0.
 const PART_DUR = 0.95;
 const HW_DUR = 0.6;
 const CAM_TURN = 0.62;
+const EL_MAX = 1.5; // camera elevation limit either way (radians), short of straight up or down
 const HOLD = 2.4;
 const FADE = 0.35;
 
@@ -910,6 +911,8 @@ export class Stage {
       az = 0.7;
       el = 0.5;
     }
+    // a step worked from behind turns the camera round to the back
+    if (this.mode.kind === "step" && this.plan?.steps[this.mode.index]?.view === "back") az += Math.PI;
     return { az, el };
   }
 
@@ -931,7 +934,8 @@ export class Stage {
       this.userEl += (0 - this.userEl) * k;
       this.userZoom += (1 - this.userZoom) * k;
     }
-    const az = this.camAz + this.userAz, el = Math.max(0.05, Math.min(1.45, this.camEl + this.userEl));
+    // the view can drop below the floor, to look at the underside
+    const az = this.camAz + this.userAz, el = Math.max(-EL_MAX, Math.min(EL_MAX, this.camEl + this.userEl));
     const dir = new THREE.Vector3(Math.sin(az) * Math.cos(el), Math.sin(el), Math.cos(az) * Math.cos(el));
     const right = new THREE.Vector3().crossVectors(Y, dir).normalize();
     const up = new THREE.Vector3().crossVectors(dir, right).normalize();
@@ -1399,7 +1403,7 @@ export class Stage {
         this.pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
         this.userAz -= dx * 0.0075;
         this.userEl += dy * 0.005;
-        this.userEl = Math.max(-0.4, Math.min(0.95, this.userEl));
+        this.userEl = Math.max(-EL_MAX - this.camEl, Math.min(EL_MAX - this.camEl, this.userEl));
       }
       if (Math.hypot(e.clientX - this.downAt.x, e.clientY - this.downAt.y) > 4 && this.autoReset) {
         this.autoReset = false;

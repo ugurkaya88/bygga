@@ -1,4 +1,4 @@
-import type { CustomFix, CustomPart, CustomStep, HwKind, PartMaterial, Pose, ProductSpec, StepKind, ToolId, Vec3, WarnId } from "../types";
+import type { CustomFix, CustomPart, CustomStep, HwItem, HwKind, PartMaterial, Pose, ProductSpec, StepKind, ToolId, Vec3, WarnId } from "../types";
 import { HW, PlanBuilder, type FitOpts, type HwDef } from "./builder";
 import { POSE_EULER, rotate, unrotate } from "./math";
 
@@ -340,7 +340,7 @@ export function buildCustom(b: PlanBuilder, s: ProductSpec) {
     }
     if ((st.people ?? 1) === 2) warnings.add("two");
 
-    b.step(
+    const made = b.step(
       {
         title: st.title,
         scene: st.scene,
@@ -433,6 +433,10 @@ export function buildCustom(b: PlanBuilder, s: ProductSpec) {
         stepHosts = hosts.filter((n) => !waiting.includes(n) && !aside.has(n));
       },
     );
+    // work done from behind (a back nailed on to the standing product) is shown from behind
+    const built = new Set([...placed, ...stepHosts, ...adds].map((n) => n.key));
+    const view = st.view ?? (pose === "+y" && !st.scene && fromBehind(b, made.n, built) ? "back" : undefined);
+    if (view === "back") made.view = view;
     placed.push(...stepHosts, ...adds);
     if (adds.length || stepHosts.length) lastAdded = [...stepHosts, ...adds];
     stepHosts = [];
@@ -659,6 +663,12 @@ function planFits(f: CustomFix, contacts: Contact[], fresh: Node[], placed: Node
 const STACKS: HwKind[] = ["washer", "nut", "cap", "clamp"];
 
 /** Emit fittings, nudging any that would sit on top of one placed earlier. */
+/** Most of a step's fittings in the build (not in loose parts laid aside) travel towards the front: they go in through the back. */
+function fromBehind(b: PlanBuilder, n: number, built: Set<string>) {
+  const hw = b.items.filter((i): i is HwItem => i.kind === "hw" && i.step === n && (!i.parent || built.has(i.parent)));
+  return hw.length > 0 && hw.filter((i) => i.dir[2] > 0.7).length >= hw.length * 0.6;
+}
+
 function emit(b: PlanBuilder, groups: Group[], used: Vec3[]) {
   const total = groups.reduce((s, g) => s + g.fits.length, 0);
   for (const g of groups) {
