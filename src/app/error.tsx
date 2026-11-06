@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useEffect } from "react";
 import { Figure } from "@/components/art/Figure";
+import { t } from "@/lib/i18n";
 
 /** Something broke while drawing a page: say so plainly and offer a way out. */
 export default function Error({ error, reset }: { error: Error & { digest?: string }; reset: () => void }) {
@@ -12,14 +13,14 @@ export default function Error({ error, reset }: { error: Error & { digest?: stri
   return (
     <main className="lost">
       <Figure pose="think" bubble="!" size={120} />
-      <h1>A part didn&apos;t fit</h1>
-      <p className="lead">Something went wrong on our side. Your progress is saved on this device.</p>
+      <h1>{t("error.title")}</h1>
+      <p className="lead">{t("error.body")}</p>
       <div className="lost-actions">
         <button className="btn primary" onClick={reset}>
-          Try again
+          {t("error.retry")}
         </button>
         <Link href="/" className="btn ghost">
-          Back to search
+          {t("error.home")}
         </Link>
       </div>
     </main>

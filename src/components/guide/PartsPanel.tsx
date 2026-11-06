@@ -9,6 +9,7 @@ import Thumb from "../Thumb";
 import { haptic } from "./hooks";
 import { playTick } from "./sound";
 import { getPref, setPref } from "@/lib/store";
+import { t, tn } from "@/lib/i18n";
 
 /**
  * Parts are ticked off as they are found: a tick means "I have it", in green.
@@ -102,7 +103,7 @@ export default function PartsPanel({
         onFocus={() => onHover([id])}
         onBlur={() => onHover(null)}
         aria-pressed={good}
-        aria-label={good ? "Ticked: I have it" : "Tick when you have it"}
+        aria-label={good ? t("parts.ticked") : t("parts.tickWhen")}
         initial={{ opacity: 0, x: 12 }}
         animate={{ opacity: 1, x: 0 }}
         transition={{ delay: Math.min(0.5, 0.03 * i), duration: 0.35, ease: [0.22, 1, 0.36, 1] }}
@@ -128,15 +129,15 @@ export default function PartsPanel({
     <div className="pane">
       <div className="pane-scroll">
         <header className="pane-head">
-          <p className="eyebrow">Unpack</p>
-          <h2>Check the box</h2>
-          <p className="sub">Lay everything out like the drawing. Tick each one as you find it.</p>
+          <p className="eyebrow">{t("parts.eyebrow")}</p>
+          <h2>{t("parts.title")}</h2>
+          <p className="sub">{t("parts.sub")}</p>
         </header>
 
         <h3 className="section-title">
-          Panels <span className="count-pill">{panels.reduce((s, p) => s + p.qty, 0)}</span>
+          {t("parts.panels")} <span className="count-pill">{panels.reduce((s, p) => s + p.qty, 0)}</span>
           <button className={"toggle tickall" + (all ? " on" : "")} onClick={tickAll} aria-pressed={all}>
-            <ICheck size={15} strokeWidth={3} /> {all ? "Untick all" : "Tick all"}
+            <ICheck size={15} strokeWidth={3} /> {all ? t("parts.untickAll") : t("parts.tickAll")}
           </button>
         </h3>
         <div className="plist">
@@ -158,16 +159,16 @@ export default function PartsPanel({
         </div>
 
         <h3 className="section-title">
-          Hardware <span className="count-pill">{hw.reduce((s, h) => s + h.qty, 0)}</span>
+          {t("parts.hardware")} <span className="count-pill">{hw.reduce((s, h) => s + h.qty, 0)}</span>
           <button className={"toggle" + (actual ? " on" : "")} onClick={() => setActual(!actual)} aria-pressed={actual}>
-            <IRuler size={15} /> Actual size
+            <IRuler size={15} /> {t("parts.actualSize")}
           </button>
         </h3>
         {actual && (
           <p className="note">
-            Lay a piece on the screen to compare.{" "}
+            {t("parts.actualNote")}{" "}
             <button className="btn link inline" onClick={() => setCalib(true)}>
-              Calibrate
+              {t("parts.calibrate")}
             </button>
           </p>
         )}
@@ -192,8 +193,8 @@ export default function PartsPanel({
           <div className="notbox">
             <IAlert size={18} />
             <div>
-              <b>Not in the box</b>
-              <span>Wall screws and plugs for fixing it to the wall. Pick ones that suit your wall.</span>
+              <b>{t("parts.notInBox")}</b>
+              <span>{t("parts.notInBoxBody")}</span>
             </div>
           </div>
         )}
@@ -201,23 +202,21 @@ export default function PartsPanel({
         <AnimatePresence>
           {nMissing > 0 && (
             <motion.div className="missbox" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 8 }}>
-              <b>
-                {nMissing} not ticked yet
-              </b>
-              <span>Anything left unticked counts as missing. You can still build the steps that don&apos;t need {nMissing === 1 ? "it" : "them"}. Spare fittings are usually free at IKEA.</span>
+              <b>{tn("parts.missing", nMissing)}</b>
+              <span>{tn("parts.missingBody", nMissing)}</span>
               <button className="btn link inline" onClick={onMissingHelp}>
-                How to get spare parts
+                {t("parts.missingHelp")}
               </button>
             </motion.div>
           )}
         </AnimatePresence>
       </div>
       <div className="pane-foot">
-        <button className="btn round" onClick={onBack} aria-label="Back">
+        <button className="btn round" onClick={onBack} aria-label={t("common.back")}>
           <IArrowLeft />
         </button>
         <button className={"btn primary big" + (going ? " going" : "")} onClick={confirm}>
-          <span>{going ? "All set" : partial ? `Continue with ${nMissing} missing` : "Everything's here"}</span>
+          <span>{going ? t("parts.allSet") : partial ? t("parts.continueMissing", { n: nMissing }) : t("parts.allHere")}</span>
           <IArrowRight />
         </button>
       </div>
@@ -242,7 +241,7 @@ export default function PartsPanel({
 
 function dims(s: [number, number, number]) {
   const v = [...s].sort((a, b) => b - a).map((x) => Math.round(x / 10));
-  return v[2] < 1 ? `${v[0]} × ${v[1]} cm` : `${v[0]} × ${v[1]} × ${Math.max(1, v[2])} cm`;
+  return v[2] < 1 ? t("unit.cmBox", { a: v[0], b: v[1] }) : t("unit.cmBox3", { a: v[0], b: v[1], c: Math.max(1, v[2]) });
 }
 
 function Calibrate({ ppm, onClose }: { ppm: number; onClose: (v?: number) => void }) {
@@ -250,20 +249,20 @@ function Calibrate({ ppm, onClose }: { ppm: number; onClose: (v?: number) => voi
   const w = 85.6 * v, h = 53.98 * v;
   return (
     <motion.div className="modal-back" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => onClose()}>
-      <motion.div className="modal" initial={{ y: 30, scale: 0.98 }} animate={{ y: 0, scale: 1 }} exit={{ y: 20, opacity: 0 }} onClick={(e) => e.stopPropagation()} role="dialog" aria-label="Calibrate actual size">
-        <button className="btn round small close" onClick={() => onClose()} aria-label="Close">
+      <motion.div className="modal" initial={{ y: 30, scale: 0.98 }} animate={{ y: 0, scale: 1 }} exit={{ y: 20, opacity: 0 }} onClick={(e) => e.stopPropagation()} role="dialog" aria-label={t("parts.calibAria")}>
+        <button className="btn round small close" onClick={() => onClose()} aria-label={t("common.close")}>
           <IClose />
         </button>
-        <h3>Match a bank card</h3>
-        <p className="sub">Hold any card against the screen and slide until the outline matches its edges.</p>
+        <h3>{t("parts.calibTitle")}</h3>
+        <p className="sub">{t("parts.calibSub")}</p>
         <div className="calib-stage">
           <div className="calib-card" style={{ width: w, height: h }}>
             <span />
           </div>
         </div>
-        <input type="range" min={2.4} max={7.5} step={0.01} value={v} onChange={(e) => setV(Number(e.target.value))} aria-label="Card size" />
+        <input type="range" min={2.4} max={7.5} step={0.01} value={v} onChange={(e) => setV(Number(e.target.value))} aria-label={t("parts.calibRange")} />
         <button className="btn primary" onClick={() => onClose(v)}>
-          Looks right
+          {t("parts.calibOk")}
         </button>
       </motion.div>
     </motion.div>

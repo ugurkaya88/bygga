@@ -7,6 +7,7 @@ import { stepContents, tipFor } from "@/lib/plan/contents";
 import { HwArt } from "../art/Hardware";
 import { ToolArt, TOOL_INFO } from "../art/Tools";
 import { IArrowLeft, IArrowRight, ICheck, IClock, IClose, IMic, ISparkle, WarnIcon, WARN_TEXT } from "../art/Icons";
+import { num, t } from "@/lib/i18n";
 import { TwoPeople } from "../art/Figure";
 import Thumb from "../Thumb";
 import { getPref, setPref } from "@/lib/store";
@@ -54,20 +55,21 @@ export default function StepPanel({
             <div className="voice-offer-text">
               <b>
                 {offer.again ? (
-                  "Turn voice back on?"
+                  t("step.offerAgain")
                 ) : (
                   <>
-                    Hands full?<span className="vo-more"> Turn on voice</span>
+                    {t("step.offerHands")}
+                    <span className="vo-more">{t("step.offerTurnOn")}</span>
                   </>
                 )}
               </b>
-              <span>{offer.listen ? "Each step is read out loud. Say “next” to move on." : "Each step is read out loud. Tap done to move on."}</span>
+              <span>{offer.listen ? t("step.offerListen") : t("step.offerTap")}</span>
             </div>
             <button className="btn voice-offer-go" onClick={offer.onStart}>
               <IMic size={17} />
-              Turn on
+              {t("step.offerGo")}
             </button>
-            <button className="voice-offer-x" onClick={offer.onDismiss} aria-label="Not now">
+            <button className="voice-offer-x" onClick={offer.onDismiss} aria-label={t("step.offerNo")}>
               <IClose size={16} />
             </button>
           </div>
@@ -75,11 +77,9 @@ export default function StepPanel({
         <motion.div key={index} initial={{ opacity: 0, x: 22 * dir }} animate={{ opacity: 1, x: 0 }} transition={{ duration: 0.4, ease: [0.22, 1, 0.36, 1] }}>
           <header className="pane-head">
             <div className="step-meta">
-              <span className="eyebrow">
-                Step {index + 1} of {plan.steps.length}
-              </span>
-              <span className="time-pill" title="Time left for the whole build">
-                <IClock size={14} /> {left < 60 ? `${left} min left` : `${Math.round(left / 6) / 10} h left`}
+              <span className="eyebrow">{t("step.of", { n: index + 1, total: plan.steps.length })}</span>
+              <span className="time-pill" title={t("step.timeLeftTitle")}>
+                <IClock size={14} /> {left < 60 ? t("step.minLeft", { n: left }) : t("step.hLeft", { n: num(Math.round(left / 6) / 10) })}
               </span>
             </div>
             <h2 className="step-title">{s.title}</h2>
@@ -90,7 +90,7 @@ export default function StepPanel({
             <div className="callout repeat">
               <span className="repeat-badge">{s.repeat}&times;</span>
               <span>
-                Do this for all {s.repeat} {plan.spec.archetype === "drawers" ? "drawers" : "of them"}. Counts below are for one.
+                {t(plan.spec.archetype === "drawers" ? "step.repeatDrawers" : "step.repeatOther", { n: s.repeat })}
               </span>
             </div>
           )}
@@ -99,15 +99,15 @@ export default function StepPanel({
             <div key={w} className={"callout warn " + w}>
               {w === "two" ? <TwoPeople size={36} /> : <WarnIcon id={w} size={36} />}
               <div>
-                <b>{w === "two" ? "Grab a second person" : w === "tip" ? "This stops it tipping over" : "You'll need to drill"}</b>
-                <span>{w === "two" ? "It's heavy or awkward for one." : w === "tip" ? "Kids climb. Always fix it to the wall." : "The screws and plugs for your wall aren't in the box."}</span>
+                <b>{w === "two" ? t("warn.twoTitle") : w === "tip" ? t("warn.tipTitle") : t("warn.wallTitle")}</b>
+                <span>{w === "two" ? t("warn.twoBody") : w === "tip" ? t("warn.tipBody") : t("warn.wallBody")}</span>
               </div>
             </div>
           ))}
 
           {hasNeeds && (
             <>
-              <h3 className="section-title">You need</h3>
+              <h3 className="section-title">{t("step.need")}</h3>
               <ul className="needs">
                 {c.parts.map(({ type, count }) => (
                   <li key={type.id} onMouseEnter={() => onHover([type.id])} onMouseLeave={() => onHover(null)}>
@@ -123,18 +123,18 @@ export default function StepPanel({
                       <HwArt kind={type.kind} len={type.len} dia={type.dia} fit={40} />
                     </span>
                     <span className="need-name">
-                      {type.notIncluded ? (type.kind === "plug" ? "Wall plug" : "Wall screw") : type.name}
+                      {type.notIncluded ? (type.kind === "plug" ? t("step.wallPlug") : t("step.wallScrew")) : type.name}
                       {type.spec && <small>{type.spec}</small>}
                     </span>
                     <span className="need-qty">{count}&times;</span>
                   </li>
                 ))}
-                {s.tools.map((t) => (
-                  <li key={t} className="tool">
+                {s.tools.map((tool) => (
+                  <li key={tool} className="tool">
                     <span className="need-art">
-                      <ToolArt id={t} size={40} />
+                      <ToolArt id={tool} size={40} />
                     </span>
-                    <span className="need-name">{TOOL_INFO[t].name}</span>
+                    <span className="need-name">{TOOL_INFO[tool].name}</span>
                   </li>
                 ))}
               </ul>
@@ -161,13 +161,13 @@ export default function StepPanel({
 
           {twoAhead >= 0 && (
             <p className="heads-up">
-              <TwoPeople size={22} /> Heads up: step {index + 2 + twoAhead} needs a second pair of hands.
+              <TwoPeople size={22} /> {t("step.headsUp", { n: index + 2 + twoAhead })}
             </p>
           )}
 
           {next ? (
             <button className="upnext" onClick={onNext}>
-              <span className="upnext-label">Up next</span>
+              <span className="upnext-label">{t("step.upNext")}</span>
               <span className="upnext-body">
                 <Thumb id={id} plan={plan} mode={{ kind: "step", index: index + 1 }} w={150} h={110} className="upnext-thumb" />
                 <span className="upnext-text">
@@ -179,10 +179,10 @@ export default function StepPanel({
             </button>
           ) : (
             <div className="upnext final">
-              <span className="upnext-label">Last step</span>
+              <span className="upnext-label">{t("step.lastStep")}</span>
               <span className="upnext-body">
                 <span className="upnext-text">
-                  <span>After this one, it&apos;s built.</span>
+                  <span>{t("step.afterThis")}</span>
                 </span>
               </span>
             </div>
@@ -191,14 +191,14 @@ export default function StepPanel({
       </div>
       <div className="pane-foot">
         <KeysTip />
-        <button className="btn round" onClick={onBack} aria-label="Previous step" title="Previous (left arrow)">
+        <button className="btn round" onClick={onBack} aria-label={t("step.prev")} title={t("step.prevTitle")}>
           <IArrowLeft />
         </button>
-        <button className="btn primary big done-btn" onClick={onNext} title="Next (right arrow or space)">
+        <button className="btn primary big done-btn" onClick={onNext} title={t("step.nextTitle")}>
           <span className="done-ico">
             <ICheck size={18} strokeWidth={2.8} />
           </span>
-          <span className="done-label">{last ? "Done, finish up" : "Done, next step"}</span>
+          <span className="done-label">{last ? t("step.finish") : t("step.next")}</span>
           <IArrowRight />
         </button>
       </div>
@@ -233,11 +233,13 @@ function KeysTip() {
       {show && (
         <motion.div className="keys-tip" role="note" initial={{ opacity: 0, y: 8, scale: 0.97 }} animate={{ opacity: 1, y: 0, scale: 1 }} exit={{ opacity: 0, y: 4 }} transition={{ type: "spring", stiffness: 460, damping: 32 }}>
           <span>
-            <kbd aria-label="Left arrow">&larr;</kbd>
-            <kbd aria-label="Right arrow">&rarr;</kbd> to move
+            <kbd aria-label={t("step.keysLeft")}>&larr;</kbd>
+            <kbd aria-label={t("step.keysRight")}>&rarr;</kbd>
+            {t("step.keysMove")}
           </span>
           <span>
-            <kbd>R</kbd> to replay
+            <kbd>R</kbd>
+            {t("step.keysReplay")}
           </span>
           <button
             className="keys-tip-x"
@@ -245,7 +247,7 @@ function KeysTip() {
               setPref("keysTip", true);
               setShow(false);
             }}
-            aria-label="Got it, hide this tip"
+            aria-label={t("step.keysHide")}
           >
             <IClose size={14} />
           </button>

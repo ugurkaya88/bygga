@@ -11,6 +11,7 @@ import { HwArt } from "../art/Hardware";
 import Thumb from "../Thumb";
 import type { KeyTrouble, KeyWhy } from "../KeyModal";
 import { keyHeaders } from "@/lib/userKey";
+import { t } from "@/lib/i18n";
 
 interface Msg {
   role: "user" | "assistant";
@@ -205,7 +206,7 @@ export default function HelpSheet({
     ctrl.current = c;
     // answers that never came aren't part of the conversation
     const history = msgs.filter((m) => !m.error && m.content).map((m) => ({ role: m.role, content: m.content }));
-    const next: Msg[] = [...msgs, { role: "user", content: question || "Which part is this?", image }, { role: "assistant", content: "" }];
+    const next: Msg[] = [...msgs, { role: "user", content: question || t("help.whichPart"), image }, { role: "assistant", content: "" }];
     setMsgs(next);
     setQ("");
     setBusy(true);
@@ -243,11 +244,7 @@ export default function HelpSheet({
           role: "assistant",
           error,
           content:
-            error === "key"
-              ? "Together turned your key away, so I couldn't answer."
-              : error === "credits"
-                ? "Your Together credit ran out, so I couldn't answer."
-                : "I couldn't reach the helper just now. Try the quick answers above, or ask again in a moment.",
+            error === "key" ? t("help.errKey") : error === "credits" ? t("help.errCredits") : t("help.errFailed"),
         };
         return c;
       });
@@ -264,7 +261,7 @@ export default function HelpSheet({
         className="side-sheet"
         role="dialog"
         aria-modal="true"
-        aria-label="Help"
+        aria-label={t("help.aria")}
         initial={{ x: 40, opacity: 0 }}
         animate={{ x: 0, opacity: 1 }}
         exit={{ x: 40, opacity: 0 }}
@@ -274,10 +271,10 @@ export default function HelpSheet({
         <div className="sheet-head">
           <Figure pose="think" bubble="?" size={64} />
           <div>
-            <h2>{index >= 0 ? `Stuck on step ${index + 1}?` : "Need a hand?"}</h2>
-            <p className="sub">{index >= 0 ? plan.steps[index].title : "Common questions while unpacking."}</p>
+            <h2>{index >= 0 ? t("help.stuck", { n: index + 1 }) : t("help.need")}</h2>
+            <p className="sub">{index >= 0 ? plan.steps[index].title : t("help.common")}</p>
           </div>
-          <button className="btn round small" onClick={onClose} aria-label="Close help">
+          <button className="btn round small" onClick={onClose} aria-label={t("help.close")}>
             <IClose />
           </button>
         </div>
@@ -303,21 +300,21 @@ export default function HelpSheet({
 
           <div className="ask-head">
             <ISparkle size={18} />
-            <b>Ask about this step</b>
+            <b>{t("help.ask")}</b>
             <button className="ask-key" onClick={() => onAddKey?.(ai ? "key" : "ask")}>
-              <IKey size={13} /> {ai ? "Your key" : "Add your key"}
+              <IKey size={13} /> {ai ? t("help.yourKey") : t("help.addKey")}
             </button>
           </div>
           {msgs.length === 0 && (
             <>
               <div className="ask-suggest">
-                {["What do I do here?", "Which screw goes where?", "Which way round does this go?"].map((s) => (
+                {[t("help.suggest1"), t("help.suggest2"), t("help.suggest3")].map((s) => (
                   <button key={s} className="chip" onClick={() => ask(s)}>
                     {s}
                   </button>
                 ))}
               </div>
-              <p className="ask-note">{ai ? "Answers come with pictures of the parts. Snap a part to ask which one it is." : "Answers come with pictures of the parts. Runs on your own Together AI key, about a cent a build."}</p>
+              <p className="ask-note">{ai ? t("help.noteKey") : t("help.noteNoKey")}</p>
             </>
           )}
           <div className="msgs">
@@ -327,17 +324,17 @@ export default function HelpSheet({
               return (
                 <motion.div key={i} className={"msg " + m.role + (m.error ? " err" : "") + (a?.shows.length ? " pics" : "")} initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}>
                   {/* eslint-disable-next-line @next/next/no-img-element */}
-                  {m.image && <img src={m.image} alt="Your photo" />}
-                  {a ? a.text ? <p>{a.text}</p> : busy && last ? <span className="typing">Thinking</span> : null : <p>{m.content}</p>}
+                  {m.image && <img src={m.image} alt={t("help.yourPhoto")} />}
+                  {a ? a.text ? <p>{a.text}</p> : busy && last ? <span className="typing">{t("help.thinking")}</span> : null : <p>{m.content}</p>}
                   {a && a.shows.length > 0 && <Pictures plan={plan} index={index} shows={a.shows} onShow={onShow} onGoto={onGoto} />}
                   {m.error === "key" && (
                     <button className="msg-fix" onClick={() => onAddKey?.("key", "key")}>
-                      <IKey size={14} /> Fix your key
+                      <IKey size={14} /> {t("help.fixKey")}
                     </button>
                   )}
                   {m.error === "credits" && (
                     <a className="msg-fix" href="https://api.together.ai/settings/billing" target="_blank" rel="noreferrer">
-                      Add credit <IExternal size={12} />
+                      {t("help.addCredit")} <IExternal size={12} />
                     </a>
                   )}
                 </motion.div>
@@ -352,11 +349,11 @@ export default function HelpSheet({
             ask(q);
           }}
         >
-          <button type="button" className="btn round small" onClick={() => file.current?.click()} disabled={busy} aria-label="Which part is this? Take a photo" title="Which part is this?">
+          <button type="button" className="btn round small" onClick={() => file.current?.click()} disabled={busy} aria-label={t("help.photoAria")} title={t("help.whichPart")}>
             <ICamera />
           </button>
-          <input ref={inputRef} value={q} onChange={(e) => setQ(e.target.value)} placeholder="Type your question" aria-label="Your question" />
-          <button type="submit" className="btn round small primary" disabled={busy || !q.trim()} aria-label="Send">
+          <input ref={inputRef} value={q} onChange={(e) => setQ(e.target.value)} placeholder={t("help.placeholder")} aria-label={t("help.questionAria")} />
+          <button type="submit" className="btn round small primary" disabled={busy || !q.trim()} aria-label={t("common.send")}>
             <ISend />
           </button>
           <input
@@ -370,7 +367,7 @@ export default function HelpSheet({
               e.target.value = "";
               if (!f) return;
               const img = await shrink(f);
-              ask("Which part is this?", img);
+              ask(t("help.whichPart"), img);
             }}
           />
         </form>
@@ -389,10 +386,10 @@ function Pictures({ plan, index, shows, onShow, onGoto }: { plan: Plan; index: n
           const st = plan.steps[x.index];
           const here = x.index === index;
           return (
-            <button key={"s" + x.index} className="pic step" disabled={here || !onGoto} onClick={() => onGoto?.(x.index)} aria-label={here ? `Step ${x.index + 1}, this step` : `Go to step ${x.index + 1}: ${st.title}`}>
+            <button key={"s" + x.index} className="pic step" disabled={here || !onGoto} onClick={() => onGoto?.(x.index)} aria-label={here ? t("help.stepHere", { n: x.index + 1 }) : t("help.stepGo", { n: x.index + 1, title: st.title })}>
               <Thumb id={id} plan={plan} mode={{ kind: "step", index: x.index }} w={260} h={190} className="pic-thumb" />
               <span className="pic-cap">
-                <b>{here ? "This step" : `Step ${x.index + 1}`}</b>
+                <b>{here ? t("help.thisStep") : t("step.n", { n: x.index + 1 })}</b>
                 <span>{st.title}</span>
               </span>
             </button>
@@ -407,7 +404,7 @@ function Pictures({ plan, index, shows, onShow, onGoto }: { plan: Plan; index: n
                 <b>
                   <span className="letter sm">{p.label}</span> {p.name}
                 </b>
-                <span>{p.qty} in the box</span>
+                <span>{t("help.inBox", { n: p.qty })}</span>
               </figcaption>
             </figure>
           );
@@ -419,8 +416,8 @@ function Pictures({ plan, index, shows, onShow, onGoto }: { plan: Plan; index: n
               <HwArt kind={h.kind} len={h.len} dia={h.dia} fit={76} />
             </span>
             <figcaption className="pic-cap">
-              <b>{h.notIncluded ? (h.kind === "plug" ? "Wall plug" : "Wall screw") : h.name}</b>
-              <span>{h.notIncluded ? "Not in the box" : [h.spec, `${h.qty} in the box`].filter(Boolean).join(", ")}</span>
+              <b>{h.notIncluded ? (h.kind === "plug" ? t("step.wallPlug") : t("step.wallScrew")) : h.name}</b>
+              <span>{h.notIncluded ? t("help.notInBox") : [h.spec, t("help.inBox", { n: h.qty })].filter(Boolean).join(", ")}</span>
             </figcaption>
           </figure>
         );
@@ -441,10 +438,10 @@ function Report({ plan, index }: { plan: Plan; index: number }) {
     }).catch(() => {});
   };
   return sent ? (
-    <p className="report-done">Thanks. We&apos;ll check step {index + 1} against the real box. Trust the paper manual for now.</p>
+    <p className="report-done">{t("help.reportThanks", { n: index + 1 })}</p>
   ) : (
     <button className="report-btn" onClick={send}>
-      <IFlag size={16} /> This step doesn&apos;t match my box
+      <IFlag size={16} /> {t("help.report")}
     </button>
   );
 }

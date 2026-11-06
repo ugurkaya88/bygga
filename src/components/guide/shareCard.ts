@@ -2,6 +2,7 @@
 
 import type { Plan } from "@/lib/types";
 import { shot } from "@/engine/thumbs";
+import { t } from "@/lib/i18n";
 
 const W = 1080;
 const H = 1350;
@@ -108,7 +109,7 @@ export async function buildCard(plan: Plan, key: string, stat: string): Promise<
     ctx.fillStyle = "#8a877f";
     ctx.font = `600 30px ${body}`;
     ctx.letterSpacing = "4px";
-    ctx.fillText("I BUILT", 110, 950);
+    ctx.fillText(t("done.cardBuilt"), 110, 950);
     ctx.letterSpacing = "0px";
     ctx.fillStyle = "#121212";
     fit(ctx, plan.spec.name, W - 220, 132, display, 800);
@@ -135,7 +136,7 @@ export async function buildCard(plan: Plan, key: string, stat: string): Promise<
     ctx.font = `500 26px ${body}`;
     const host = location.host.replace(/^www\./, "");
     ctx.textAlign = "right";
-    ctx.fillText(`Step by step in 3D, ${host}`, W - 110, 1280);
+    ctx.fillText(t("done.cardTagline", { host }), W - 110, 1280);
     ctx.textAlign = "left";
 
     return await new Promise<Blob | null>((r) => c.toBlob(r, "image/png"));

@@ -4,23 +4,32 @@ import { AnimatePresence, motion } from "motion/react";
 import { useEffect, useId, useRef, useState } from "react";
 import { IClose, IFeedback } from "../art/Icons";
 import { CheckDot } from "./ui";
+import { t } from "@/lib/i18n";
 
 const TOPICS = [
-  { id: "looks", label: "Model looks off" },
-  { id: "size", label: "Wrong size" },
-  { id: "steps", label: "Steps unclear" },
-  { id: "bug", label: "Something broke" },
-  { id: "idea", label: "Idea" },
+  { id: "looks", label: () => t("fb.looks") },
+  { id: "size", label: () => t("fb.size") },
+  { id: "steps", label: () => t("fb.steps") },
+  { id: "bug", label: () => t("fb.bug") },
+  { id: "idea", label: () => t("fb.idea") },
 ] as const;
 type Topic = (typeof TOPICS)[number]["id"];
 
-const HINTS: Record<Topic | "none", string> = {
-  none: "What did you notice?",
-  looks: "What looks different from the real one?",
-  size: "Which size is off, and what does your box say?",
-  steps: "Which step lost you?",
-  bug: "What happened, and what did you expect?",
-  idea: "What would make this better?",
+const hint = (topic: Topic | "none") => {
+  switch (topic) {
+    case "none":
+      return t("fb.hintNone");
+    case "looks":
+      return t("fb.hintLooks");
+    case "size":
+      return t("fb.hintSize");
+    case "steps":
+      return t("fb.hintSteps");
+    case "bug":
+      return t("fb.hintBug");
+    case "idea":
+      return t("fb.hintIdea");
+  }
 };
 
 export interface FeedbackContext {
@@ -59,9 +68,9 @@ export default function Feedback({ ctx, onOpen }: { ctx: FeedbackContext; onOpen
 
   return (
     <div className="fb" ref={wrap}>
-      <button ref={btn} className={"fb-btn" + (open ? " on" : "")} onClick={() => toggle(!open)} aria-expanded={open} aria-haspopup="dialog" aria-label="Give feedback">
+      <button ref={btn} className={"fb-btn" + (open ? " on" : "")} onClick={() => toggle(!open)} aria-expanded={open} aria-haspopup="dialog" aria-label={t("fb.button")}>
         <IFeedback size={18} />
-        <span>Feedback</span>
+        <span>{t("fb.buttonText")}</span>
       </button>
       <AnimatePresence>{open && <Card ctx={ctx} onClose={() => toggle(false)} />}</AnimatePresence>
     </div>
@@ -119,7 +128,7 @@ function Card({ ctx, onClose }: { ctx: FeedbackContext; onClose: () => void }) {
   };
 
   const where = [ctx.name, ctx.variant].filter(Boolean).join(" ");
-  const at = ctx.step ? `Step ${ctx.step}` : { cover: "Overview", tools: "Tools", parts: "Parts", done: "Done" }[ctx.phase];
+  const at = ctx.step ? t("step.n", { n: ctx.step }) : { cover: t("fb.atCover"), tools: t("stepper.tools"), parts: t("stepper.parts"), done: t("stepper.done") }[ctx.phase];
 
   return (
     <>
@@ -144,14 +153,14 @@ function Card({ ctx, onClose }: { ctx: FeedbackContext; onClose: () => void }) {
           {state === "sent" ? (
             <motion.div key="sent" className="fb-sent" initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.28, ease: [0.22, 1, 0.36, 1] }}>
               <CheckDot on size={40} />
-              <b>Thanks, it&apos;s with us.</b>
-              <span>We read every note, and fix the guides people flag first.</span>
+              <b>{t("fb.sentTitle")}</b>
+              <span>{t("fb.sentBody")}</span>
             </motion.div>
           ) : (
             <motion.div key="form" className="fb-form" exit={{ opacity: 0, y: -4, transition: { duration: 0.12 } }}>
               <div className="fb-head">
-                <b id={title}>Send feedback</b>
-                <button className="icon-btn fb-x" onClick={onClose} aria-label="Close">
+                <b id={title}>{t("fb.title")}</b>
+                <button className="icon-btn fb-x" onClick={onClose} aria-label={t("common.close")}>
                   <IClose size={18} />
                 </button>
               </div>
@@ -159,21 +168,21 @@ function Card({ ctx, onClose }: { ctx: FeedbackContext; onClose: () => void }) {
                 <span>{where}</span>
                 {at && <i>{at}</i>}
               </p>
-              <div className="fb-topics" role="radiogroup" aria-label="What is it about?">
-                {TOPICS.map((t) => (
-                  <button key={t.id} role="radio" aria-checked={topic === t.id} className={"fb-topic" + (topic === t.id ? " on" : "")} onClick={() => setTopic(topic === t.id ? null : t.id)}>
-                    {t.label}
+              <div className="fb-topics" role="radiogroup" aria-label={t("fb.topics")}>
+                {TOPICS.map((tp) => (
+                  <button key={tp.id} role="radio" aria-checked={topic === tp.id} className={"fb-topic" + (topic === tp.id ? " on" : "")} onClick={() => setTopic(topic === tp.id ? null : tp.id)}>
+                    {tp.label()}
                   </button>
                 ))}
               </div>
-              <textarea ref={text} className="fb-note" value={note} onChange={(e) => setNote(e.target.value.slice(0, 2000))} placeholder={HINTS[topic ?? "none"]} rows={4} aria-label="Your feedback" />
-              <input className="fb-email" type="email" inputMode="email" autoComplete="email" value={email} onChange={(e) => setEmail(e.target.value.slice(0, 120))} placeholder="Email, if you'd like a reply (optional)" aria-label="Email (optional)" />
+              <textarea ref={text} className="fb-note" value={note} onChange={(e) => setNote(e.target.value.slice(0, 2000))} placeholder={hint(topic ?? "none")} rows={4} aria-label={t("fb.note")} />
+              <input className="fb-email" type="email" inputMode="email" autoComplete="email" value={email} onChange={(e) => setEmail(e.target.value.slice(0, 120))} placeholder={t("fb.emailPlaceholder")} aria-label={t("fb.emailAria")} />
               <div className="fb-foot">
                 <span className={"fb-status" + (state === "failed" ? " bad" : "")} aria-live="polite">
-                  {state === "failed" ? "Couldn't send. Check your connection and try again." : "No account needed. We only see what you write here."}
+                  {state === "failed" ? t("fb.failed") : t("fb.status")}
                 </span>
                 <button className="btn primary fb-send" onClick={send} disabled={!ready}>
-                  {state === "sending" ? <span className="fb-spin" aria-label="Sending" /> : "Send"}
+                  {state === "sending" ? <span className="fb-spin" aria-label={t("fb.sending")} /> : t("common.send")}
                 </button>
               </div>
             </motion.div>
