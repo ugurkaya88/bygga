@@ -17,6 +17,7 @@ import type {
   Vec3,
   WarnId,
 } from "../types";
+import { t } from "../i18n";
 import { rotate, toLocal, unrotate } from "./math";
 
 const LETTERS = "ABCDEFGHJKLMNPRSTUVWXYZ";
@@ -69,43 +70,6 @@ export const HW = {
   cap: { kind: "cap", len: 2, dia: 14 },
   spacer: { kind: "spacer", len: 20, dia: 16 },
 } satisfies Record<string, HwDef>;
-
-const HW_NAMES: Record<HwKind, string> = {
-  dowel: "Wooden dowel",
-  camScrew: "Cam bolt",
-  cam: "Cam lock",
-  screw: "Screw",
-  nail: "Nail",
-  pin: "Shelf pin",
-  legScrew: "Leg bolt",
-  bolt: "Allen bolt",
-  plate: "Leg plate",
-  bracket: "Wall bracket",
-  runner: "Drawer runner",
-  knob: "Knob",
-  handle: "Handle",
-  hinge: "Hinge",
-  hingePlate: "Hinge plate",
-  glide: "Felt pad",
-  plug: "Wall plug",
-  castor: "Castor",
-  gasLift: "Gas lift",
-  connector: "Connector",
-  roller: "Door roller",
-  flatHinge: "Flat hinge",
-  hook: "Hook",
-  clip: "Plastic clip",
-  strap: "Wall strap",
-  nut: "Nut",
-  washer: "Washer",
-  stud: "Stud",
-  clamp: "Clamp",
-  angle: "Angle bracket",
-  foot: "Foot",
-  cornerFoot: "Corner foot",
-  cap: "Cover cap",
-  spacer: "Wall spacer",
-};
 
 export function hwSpecText(kind: HwKind, len: number, dia: number) {
   switch (kind) {
@@ -247,7 +211,7 @@ export class PlanBuilder {
       this.hw.set(id, {
         id,
         kind: def.kind,
-        name: def.name ?? HW_NAMES[def.kind],
+        name: def.name ?? t(`hw.${def.kind}`),
         spec: hwSpecText(def.kind, def.len, def.dia),
         len: def.len,
         dia: def.dia,
@@ -431,19 +395,19 @@ export class PlanBuilder {
         if (id === "allen" || id === "wrench") n.included = true;
         if (id === "drill") {
           n.optional = true;
-          n.why = "Only for fixing it to the wall";
+          n.why = t("tool.why.drill");
         }
         if (id === "tape") {
           n.optional = true;
-          n.why = "To check it is square";
+          n.why = t("tool.why.tape");
         }
         if (id === "pencil" || id === "level") {
           n.optional = true;
-          n.why = "Handy for marking the wall";
+          n.why = t("tool.why.marking");
         }
         if (id === "knife") {
           n.optional = true;
-          n.why = "To open the box. Cut the tape, not the panels";
+          n.why = t("tool.why.knife");
         }
         return n;
       });

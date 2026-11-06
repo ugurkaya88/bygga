@@ -1,3 +1,5 @@
+import { LOCALE } from "./i18n";
+
 /** IKEA's shorthand in product names, spelled out: "Base cab f hob/2 frnts" reads "Base cabinet for hob/2 fronts". */
 const SHORTHAND: [RegExp, string][] = [
   [/\s*\+\s*/g, " and "],
@@ -29,6 +31,8 @@ const SHORTHAND: [RegExp, string][] = [
 ];
 
 export function spellOut(t: string) {
+  // the shorthand is IKEA's English; a Turkish name is already written out
+  if (LOCALE === "tr") return t;
   return SHORTHAND.reduce((acc, [re, word]) => acc.replace(re, word), t)
     .replace(/(^|\s)w (?=\S)/gi, "$1with ")
     .replace(/\bdrs\b/g, "doors")

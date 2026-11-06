@@ -1,3 +1,4 @@
+import { t } from "@/lib/i18n";
 import type { WarnId } from "@/lib/types";
 import {
   ArrowLeft,
@@ -213,14 +214,14 @@ export function WarnIcon({ id, size = 36 }: { id: WarnId; size?: number }) {
 }
 
 export const WARN_TEXT: Record<WarnId, string> = {
-  two: "Two people",
-  loose: "Don't tighten fully yet",
-  hand: "Tighten by hand only",
-  wall: "Fix it to the wall",
-  square: "Keep it square",
-  floor: "Protect the surface",
-  face: "Holes face inwards",
-  tip: "Tip-over risk",
+  two: t("warn.two"),
+  loose: t("warn.loose"),
+  hand: t("warn.hand"),
+  wall: t("warn.wall"),
+  square: t("warn.square"),
+  floor: t("warn.floor"),
+  face: t("warn.face"),
+  tip: t("warn.tip"),
 };
 
 export function IGithub({ size = 22, className }: { size?: number; className?: string }) {
