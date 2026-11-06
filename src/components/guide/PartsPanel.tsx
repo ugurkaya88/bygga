@@ -135,7 +135,7 @@ export default function PartsPanel({
 
         <h3 className="section-title">
           Panels <span className="count-pill">{panels.reduce((s, p) => s + p.qty, 0)}</span>
-          <button className={"toggle" + (all ? " on" : "")} onClick={tickAll} aria-pressed={all}>
+          <button className={"toggle tickall" + (all ? " on" : "")} onClick={tickAll} aria-pressed={all}>
             <ICheck size={15} strokeWidth={3} /> {all ? "Untick all" : "Tick all"}
           </button>
         </h3>
