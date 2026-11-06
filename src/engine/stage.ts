@@ -3,6 +3,7 @@ import type { HwItem, PartItem, PartState, PartType, Plan, Step, Vec3 } from "@/
 import { POSE_EULER } from "@/lib/plan/math";
 import { Drawable, hwDrawable, partDrawable, wallDrawable } from "./drawable";
 import { INK, INK_OLD } from "./materials";
+import { t as tx } from "@/lib/i18n";
 
 /** Part names can come from a shared scan link: never let them through as markup. */
 const esc = (t: string) => String(t).replace(/[&<>"']/g, (c) => `&#${c.charCodeAt(0)};`);
@@ -1281,9 +1282,9 @@ export class Stage {
       if (t.textContent !== label) t.textContent = label;
     };
     const { min, max } = box;
-    line(0, [min.x, min.y, max.z], [max.x, min.y, max.z], [0, -off * 0.2, off], `${Math.round(size.w)} cm`, 1);
-    line(1, [max.x, min.y, max.z], [max.x, min.y, min.z], [off, -off * 0.2, 0], `${Math.round(size.d)} cm`, 1);
-    line(2, [min.x, min.y, max.z], [min.x, max.y, max.z], [-off, 0, off * 0.3], `${Math.round(size.h)} cm`, -1);
+    line(0, [min.x, min.y, max.z], [max.x, min.y, max.z], [0, -off * 0.2, off], tx("unit.cm", { n: Math.round(size.w) }), 1);
+    line(1, [max.x, min.y, max.z], [max.x, min.y, min.z], [off, -off * 0.2, 0], tx("unit.cm", { n: Math.round(size.d) }), 1);
+    line(2, [min.x, min.y, max.z], [min.x, max.y, max.z], [-off, 0, off * 0.3], tx("unit.cm", { n: Math.round(size.h) }), -1);
     this.dimsEl.style.opacity = "1";
   }
 

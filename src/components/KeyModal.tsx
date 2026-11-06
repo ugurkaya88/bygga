@@ -6,6 +6,7 @@ import { motion } from "motion/react";
 import { Figure } from "./art/Figure";
 import { ICamera, ICheck, IClose, IExternal, IImage, IKey, ILock, IMic, IVolume, IWand } from "./art/Icons";
 import { KEY_URL, setUserKey, useUserKey } from "@/lib/userKey";
+import { t } from "@/lib/i18n";
 
 /** What brought the person here: the modal leads with that. "key" is for checking or changing a saved key. */
 export type KeyWhy = "voice" | "ask" | "photo" | "draft" | "key";
@@ -15,19 +16,19 @@ export type KeyTrouble = "key" | "credits";
 const BILLING_URL = "https://api.together.ai/settings/billing";
 
 const FEATURES = {
-  next: { icon: IMic, b: "Say “next”", rest: "and it moves on. Your hands stay on the build." },
-  ask: { icon: IVolume, b: "Ask when you're stuck,", rest: "out loud or typed, and hear the answer." },
-  see: { icon: IImage, b: "See the exact part", rest: "it means, drawn from your guide." },
-  photo: { icon: ICamera, b: "Snap the box label", rest: "to find its guide." },
-  draft: { icon: IWand, b: "Steps for any product,", rest: "even ones we don't have yet." },
+  next: { icon: IMic, b: t("key.nextB"), rest: t("key.nextRest") },
+  ask: { icon: IVolume, b: t("key.askB"), rest: t("key.askRest") },
+  see: { icon: IImage, b: t("key.seeB"), rest: t("key.seeRest") },
+  photo: { icon: ICamera, b: t("key.photoB"), rest: t("key.photoRest") },
+  draft: { icon: IWand, b: t("key.draftB"), rest: t("key.draftRest") },
 };
 
 const COPY: Record<KeyWhy, { title: (name?: string) => string; bubble: string; features: (keyof typeof FEATURES)[] }> = {
-  voice: { title: () => "Go hands-free", bubble: "Next!", features: ["next", "ask", "see"] },
-  ask: { title: () => "Ask about any step", bubble: "Which one?", features: ["ask", "see", "next"] },
-  photo: { title: () => "Search with a photo", bubble: "Found it", features: ["photo", "ask", "next"] },
-  draft: { title: (name) => (name ? `Steps for ${name}` : "Steps for any product"), bubble: "How?", features: ["draft", "next", "ask"] },
-  key: { title: () => "Your Together AI key", bubble: "Hi!", features: ["next", "ask", "see"] },
+  voice: { title: () => t("key.voiceTitle"), bubble: t("key.voiceBubble"), features: ["next", "ask", "see"] },
+  ask: { title: () => t("key.askTitle"), bubble: t("key.askBubble"), features: ["ask", "see", "next"] },
+  photo: { title: () => t("key.photoTitle"), bubble: t("key.photoBubble"), features: ["photo", "ask", "next"] },
+  draft: { title: (name) => (name ? t("key.draftTitle", { name }) : t("key.draftTitleAny")), bubble: t("key.draftBubble"), features: ["draft", "next", "ask"] },
+  key: { title: () => t("key.keyTitle"), bubble: t("key.keyBubble"), features: ["next", "ask", "see"] },
 };
 
 /**
@@ -149,11 +150,11 @@ export default function KeyModal({
   const bad = state === "bad" || state === "busy";
   const help =
     state === "bad"
-      ? "Together didn't accept that key. Copy it again from your Together dashboard."
+      ? t("key.helpBad")
       : state === "busy"
-        ? "That's a lot of tries. Wait a few minutes, then paste it again."
+        ? t("key.helpBusy")
         : trouble === "key" && !draft
-      ? "Together turned your saved key away. Paste a new one."
+      ? t("key.helpTrouble")
       : null;
 
   // on the body, so nothing it's opened from (a moving search box, a sheet) can clip or shift it
@@ -172,7 +173,7 @@ export default function KeyModal({
         transition={{ type: "spring", stiffness: 420, damping: 34 }}
         onClick={(e) => e.stopPropagation()}
       >
-        <button className="key-x" onClick={close} aria-label="Close">
+        <button className="key-x" onClick={close} aria-label={t("common.close")}>
           <IClose size={18} />
         </button>
 
@@ -185,7 +186,7 @@ export default function KeyModal({
         </div>
 
         <h2 id="key-title">{copy.title(name)}</h2>
-        <p className="key-sub">Bygga&apos;s AI runs on your own Together AI key.</p>
+        <p className="key-sub">{t("key.sub")}</p>
 
         <ul className="key-feats">
           {copy.features.map((f) => {
@@ -207,18 +208,18 @@ export default function KeyModal({
           <div className="key-cost out">
             <span className="key-cent">$0</span>
             <span>
-              <b>Your Together credit ran out.</b>
+              <b>{t("key.creditsLead")}</b>
               <a href={BILLING_URL} target="_blank" rel="noreferrer">
-                Add credit <IExternal size={12} />
-              </a>{" "}
-              and it picks up where it left off.
+                {t("help.addCredit")} <IExternal size={12} />
+              </a>
+              {t("key.creditsTail")}
             </span>
           </div>
         ) : (
           <div className="key-cost">
             <span className="key-cent">1¢</span>
             <span>
-              <b>About a cent a build.</b> A few cents if the room is busy. $5 of credit lasts 100+ builds.
+              <b>{t("key.costLead")}</b>{t("key.costTail")}
             </span>
           </div>
         )}
@@ -227,8 +228,8 @@ export default function KeyModal({
           <div className="key-have">
             <span className="key-have-ico">{state === "saved" ? <ICheck size={17} strokeWidth={2.6} /> : <IKey size={17} />}</span>
             <span className="key-have-text">
-              <b>Key saved</b>
-              <span>Ending in {key.slice(-4)}</span>
+              <b>{t("key.saved")}</b>
+              <span>{t("key.ending", { tail: key.slice(-4) })}</span>
             </span>
             <button
               className="link-btn"
@@ -237,10 +238,10 @@ export default function KeyModal({
                 setTimeout(() => input.current?.focus(), 30);
               }}
             >
-              Change
+              {t("key.change")}
             </button>
             <button className="link-btn" onClick={() => setUserKey("")}>
-              Remove
+              {t("key.remove")}
             </button>
           </div>
         ) : (
@@ -269,8 +270,8 @@ export default function KeyModal({
                   setDraft(v);
                   save(v);
                 }}
-                placeholder="Paste your key"
-                aria-label="Together AI API key"
+                placeholder={t("key.placeholder")}
+                aria-label={t("key.aria")}
                 aria-invalid={bad}
                 aria-describedby="key-help"
                 autoComplete="off"
@@ -282,12 +283,12 @@ export default function KeyModal({
             <button className="btn primary key-save" type="submit" disabled={!draft.trim() || state === "checking" || state === "saved"}>
               {state === "saved" ? (
                 <>
-                  <ICheck size={17} strokeWidth={2.8} /> Saved
+                  <ICheck size={17} strokeWidth={2.8} /> {t("key.savedBtn")}
                 </>
               ) : state === "checking" ? (
-                "Checking"
+                t("key.checking")
               ) : (
-                "Save"
+                t("key.save")
               )}
             </button>
           </form>
@@ -296,15 +297,15 @@ export default function KeyModal({
         <p id="key-help" className={"key-help" + (help ? " bad" : "")} role={help ? "alert" : undefined}>
           {help ?? (
             <>
-              No key yet?{" "}
+              {t("key.noKey")}{" "}
               <a href={KEY_URL} target="_blank" rel="noreferrer">
-                Make one at together.ai <IExternal size={12} />
+                {t("key.make")} <IExternal size={12} />
               </a>
             </>
           )}
         </p>
         <p className="key-safe">
-          <ILock size={13} /> Stays in this browser. Bygga never stores it.
+          <ILock size={13} /> {t("key.safe")}
         </p>
 
         {skip && (

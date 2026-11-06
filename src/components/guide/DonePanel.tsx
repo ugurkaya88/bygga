@@ -10,13 +10,13 @@ import { buildMinutes, getPref, setPref } from "@/lib/store";
 import { Figure } from "../art/Figure";
 import { IArrowLeft, IArrowRight, ICheck, ILibrary, IShare } from "../art/Icons";
 import Drawing from "../Drawing";
-import { fmtMin } from "./CoverPanel";
+import { LOCALE, fmtMin, t, tn } from "@/lib/i18n";
 import { buildCard } from "./shareCard";
 import { encodeSpec } from "@/lib/scan/share";
 import { track } from "@vercel/analytics";
 
 export default function DonePanel({ plan, slug, finish, onReview }: { plan: Plan; slug: string; finish: { ms: number; full: boolean } | null; onReview: () => void }) {
-  const t = totals(plan);
+  const tot = totals(plan);
   const s = plan.spec;
   // a time only counts when the steps were followed, not tapped through in a minute
   const spent = buildMinutes(finish?.ms, finish?.full, s.minutes);
@@ -24,7 +24,7 @@ export default function DonePanel({ plan, slug, finish, onReview }: { plan: Plan
   const a = s.archetype;
   const recheck = a === "table" || a === "bed" || a === "seat" || a === "sofa";
   const tall = plan.steps.some((x) => x.kind === "anchor");
-  const stat = [spent ? fmtMin(spent) : null, `${plan.steps.length} steps`, `${t.fittings} fittings`].filter(Boolean).join("  \u00b7  ");
+  const stat = [spent ? fmtMin(spent) : null, tn("count.steps", plan.steps.length), tn("count.fittings", tot.fittings)].filter(Boolean).join("  \u00b7  ");
 
   return (
     <div className="pane done">
@@ -33,23 +33,23 @@ export default function DonePanel({ plan, slug, finish, onReview }: { plan: Plan
           <Figure pose="cheer" size={112} bubble="check" className="bounce" />
         </motion.div>
         <motion.h2 className="done-title" initial={{ y: 16, opacity: 0 }} animate={{ y: 0, opacity: 1 }} transition={{ delay: 0.25, duration: 0.5, ease: [0.22, 1, 0.36, 1] }}>
-          You built {s.name}.
+          {t("done.title", { name: s.name })}
         </motion.h2>
         <motion.p className="sub center" initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.4 }}>
-          {faster ? `${s.minutes - spent!} ${s.minutes - spent! === 1 ? "minute" : "minutes"} under the typical time.` : spent ? "Built at your own pace. That's the right pace." : "Every step done. Nice work."}
+          {faster ? tn("done.faster", s.minutes - spent!) : spent ? t("done.ownPace") : t("done.allDone")}
         </motion.p>
         <motion.dl className="stats" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.5 }}>
           <div>
-            <dt>{spent ? "Your time" : "Typical time"}</dt>
+            <dt>{spent ? t("done.yourTime") : t("done.typicalTime")}</dt>
             <dd>{fmtMin(spent ?? s.minutes)}</dd>
           </div>
           <div>
-            <dt>Steps</dt>
+            <dt>{t("done.steps")}</dt>
             <dd>{plan.steps.length}</dd>
           </div>
           <div>
-            <dt>Fittings</dt>
-            <dd>{t.fittings}</dd>
+            <dt>{t("done.fittings")}</dt>
+            <dd>{tot.fittings}</dd>
           </div>
         </motion.dl>
 
@@ -60,8 +60,8 @@ export default function DonePanel({ plan, slug, finish, onReview }: { plan: Plan
             <ILibrary size={18} />
           </span>
           <span>
-            <b>Saved to your workshop</b>
-            <span>See everything you&apos;ve built, side by side and to scale.</span>
+            <b>{t("done.saved")}</b>
+            <span>{t("done.savedBody")}</span>
           </span>
           <IArrowRight size={18} />
         </Link>
@@ -69,32 +69,32 @@ export default function DonePanel({ plan, slug, finish, onReview }: { plan: Plan
         <NextUp plan={plan} />
         <Match plan={plan} slug={slug} />
 
-        <h3 className="section-title">Before you load it up</h3>
+        <h3 className="section-title">{t("done.before")}</h3>
         <ul className="after">
           {tall && (
             <li>
-              <ICheck size={16} strokeWidth={2.6} /> Double check it&apos;s fixed to the wall.
+              <ICheck size={16} strokeWidth={2.6} /> {t("done.wallCheck")}
             </li>
           )}
           {recheck && (
             <li>
-              <ICheck size={16} strokeWidth={2.6} /> Tighten every bolt again after a week. Wood settles.
+              <ICheck size={16} strokeWidth={2.6} /> {t("done.retighten")}
             </li>
           )}
           <li>
-            <ICheck size={16} strokeWidth={2.6} /> Spare fittings are normal. Tape the bag inside, with the Allen key.
+            <ICheck size={16} strokeWidth={2.6} /> {t("done.spare")}
           </li>
           <li>
-            <ICheck size={16} strokeWidth={2.6} /> Flatten the box for recycling.
+            <ICheck size={16} strokeWidth={2.6} /> {t("done.recycle")}
           </li>
         </ul>
       </div>
       <div className="pane-foot">
-        <button className="btn round" onClick={onReview} aria-label="Back to the last step" data-tip="Last step">
+        <button className="btn round" onClick={onReview} aria-label={t("done.backAria")} data-tip={t("done.backTip")}>
           <IArrowLeft />
         </button>
         <Link className="btn primary big" href="/">
-          <span>Build something else</span>
+          <span>{t("done.else")}</span>
           <IArrowRight />
         </Link>
       </div>
@@ -126,7 +126,7 @@ function ShareCard({ plan, slug, stat, spent }: { plan: Plan; slug: string; stat
   const share = async () => {
     // scanned guides only exist in this browser, so the link carries the guide itself
     const url = `${location.origin}/build/${slug}` + (plan.spec.source === "scan" ? `#g=${await encodeSpec(plan.spec)}` : "");
-    const text = spent ? `I just built ${plan.spec.name} in ${fmtMin(spent)}, one step at a time.` : `I just built ${plan.spec.name}, one step at a time.`;
+    const text = spent ? t("done.shareText", { name: plan.spec.name, time: fmtMin(spent) }) : t("done.shareTextNoTime", { name: plan.spec.name });
     const file = card ? new File([card.blob], `${plan.spec.name.toLowerCase()}-built.png`, { type: "image/png" }) : null;
     track("share", { product: plan.spec.name, image: !!file });
     try {
@@ -146,19 +146,19 @@ function ShareCard({ plan, slug, stat, spent }: { plan: Plan; slug: string; stat
     <motion.div className="share-card" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.6 }}>
       <div className={"share-pic" + (card ? " ready" : "")}>
         {/* eslint-disable-next-line @next/next/no-img-element */}
-        {card && <img src={card.url} alt={`${plan.spec.name}, built`} />}
+        {card && <img src={card.url} alt={t("done.shareAlt", { name: plan.spec.name })} />}
       </div>
       <div className="share-text">
-        <b>Show it off</b>
-        <span>A picture of your build, ready to post.</span>
+        <b>{t("done.shareTitle")}</b>
+        <span>{t("done.shareBody")}</span>
         <div className="share-actions">
           <button className="btn share-go" onClick={share}>
             {copied ? <ICheck size={17} /> : <IShare size={17} />}
-            {copied ? "Link copied" : "Share"}
+            {copied ? t("done.shareCopied") : t("done.share")}
           </button>
           {card && (
             <a className="btn link small" href={card.url} download={`${plan.spec.name.toLowerCase()}-built.png`}>
-              Save image
+              {t("done.saveImage")}
             </a>
           )}
         </div>
@@ -172,13 +172,14 @@ function NextUp({ plan }: { plan: Plan }) {
   const s = plan.spec;
   const picks = useMemo(() => {
     const own = (s.siblings ?? []).map((x) => ({ slug: x.slug, name: s.name, label: x.label }));
-    const more = POPULAR.filter((p) => p.name !== s.name).map((p) => ({ slug: p.slug, name: p.name, label: p.category }));
+    // popular builds are IKEA products from the English catalog; a Turkish guide only suggests its own set
+    const more = LOCALE === "tr" ? [] : POPULAR.filter((p) => p.name !== s.name).map((p) => ({ slug: p.slug, name: p.name, label: p.category }));
     return [...own, ...more].slice(0, own.length ? Math.min(3, own.length) : 3);
   }, [s]);
   if (!picks.length) return null;
   return (
     <>
-      <h3 className="section-title">{s.siblings?.length ? `Finish the ${s.name} set` : "Up next"}</h3>
+      <h3 className="section-title">{s.siblings?.length ? t("done.finishSet", { name: s.name }) : t("done.upNext")}</h3>
       <div className="next-up">
         {picks.map((p) => (
           <Link key={p.slug} href={`/build/${p.slug}`} className="next-card">
@@ -212,27 +213,27 @@ function Match({ plan, slug }: { plan: Plan; slug: string }) {
   if (state === "sent")
     return (
       <p className="match-thanks">
-        <ICheck size={16} strokeWidth={2.6} /> Thanks, that helps us fix guides.
+        <ICheck size={16} strokeWidth={2.6} /> {t("done.matchThanks")}
       </p>
     );
   return (
     <div className="match">
       <div className="match-q">
-        <b>Did the steps match your box?</b>
+        <b>{t("done.matchQ")}</b>
         {state === "ask" && (
           <div className="match-btns">
             <button className="pill-btn" onClick={() => send(true)}>
-              Yes
+              {t("common.yes")}
             </button>
             <button className="pill-btn" onClick={() => setState("no")}>
-              Not quite
+              {t("done.matchNo")}
             </button>
           </div>
         )}
       </div>
       {state === "no" && (
         <motion.div className="match-more" initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: "auto" }}>
-          <span className="muted">Which step looked different?</span>
+          <span className="muted">{t("done.matchWhich")}</span>
           <div className="match-steps">
             {plan.steps.map((_, i) => (
               <button key={i} className={"step-chip" + (step === i + 1 ? " on" : "")} onClick={() => setStep(step === i + 1 ? null : i + 1)} aria-pressed={step === i + 1}>
@@ -240,9 +241,9 @@ function Match({ plan, slug }: { plan: Plan; slug: string }) {
               </button>
             ))}
           </div>
-          <textarea value={note} onChange={(e) => setNote(e.target.value.slice(0, 400))} placeholder="What was different? (optional)" rows={2} />
+          <textarea value={note} onChange={(e) => setNote(e.target.value.slice(0, 400))} placeholder={t("done.matchNote")} rows={2} />
           <button className="btn primary small" onClick={() => send(false)}>
-            Send
+            {t("common.send")}
           </button>
         </motion.div>
       )}

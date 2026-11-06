@@ -1,6 +1,7 @@
 "use client";
 
 import { motion } from "motion/react";
+import { t } from "@/lib/i18n";
 
 /** Round check that fills and draws its tick. */
 export function CheckDot({ on, size = 28 }: { on: boolean; size?: number }) {
@@ -71,7 +72,7 @@ export function Ring({ value, size = 44, label }: { value: number; size?: number
 
 export function Dots({ value, max = 3 }: { value: number; max?: number }) {
   return (
-    <span className="dots" aria-label={`Difficulty ${value} of ${max}`}>
+    <span className="dots" aria-label={t("level.aria", { value, max })}>
       {Array.from({ length: max }, (_, i) => (
         <i key={i} className={i < value ? "on" : ""} />
       ))}

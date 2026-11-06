@@ -13,7 +13,7 @@ import { LogoMark } from "../Logo";
 import { HwArt } from "../art/Hardware";
 import { TOOL_INFO, ToolArt } from "../art/Tools";
 import { IArrowLeft, IPeople, IPrint } from "../art/Icons";
-import { fmtMin } from "./CoverPanel";
+import { fmtMin, t, tn } from "@/lib/i18n";
 import { SITE_URL } from "@/lib/site";
 
 const PER_PAGE = 6;
@@ -36,7 +36,7 @@ export default function PrintGuide({ slug }: { slug: string }) {
       <div className="print-doc">
         <div className="print-bar">
           <Link href={`/build/${slug}`} className="btn ghost">
-            <IArrowLeft size={18} /> Open the guide first
+            <IArrowLeft size={18} /> {t("print.openFirst")}
           </Link>
         </div>
       </div>
@@ -46,7 +46,7 @@ export default function PrintGuide({ slug }: { slug: string }) {
 
 function Doc({ plan, slug }: { plan: Plan; slug: string }) {
   const s = plan.spec;
-  const t = totals(plan);
+  const tot = totals(plan);
   const root = useRef<HTMLDivElement>(null);
   const [ready, setReady] = useState(0);
   useEffect(() => {
@@ -69,38 +69,38 @@ function Doc({ plan, slug }: { plan: Plan; slug: string }) {
   return (
     <div className="print-doc" ref={root}>
       <div className="print-bar">
-        <Link href={`/build/${slug}`} className="btn round small" aria-label="Back to the guide">
+        <Link href={`/build/${slug}`} className="btn round small" aria-label={t("print.backAria")}>
           <IArrowLeft size={18} />
         </Link>
-        <span className="print-status">{done ? `${pages.length + 1} pages, ready to print` : `Drawing step ${Math.min(total, ready + 1)} of ${total}`}</span>
+        <span className="print-status">{done ? t("print.ready", { n: pages.length + 1 }) : t("print.drawing", { n: Math.min(total, ready + 1), total })}</span>
         <button className="btn primary" onClick={() => window.print()} disabled={!done}>
-          <IPrint size={18} /> Print
+          <IPrint size={18} /> {t("print.print")}
         </button>
       </div>
 
       <section className="print-page cover-page">
         <header className="pp-head">
           <LogoMark size={28} />
-          <span>Assembly guide</span>
+          <span>{t("print.head")}</span>
         </header>
         <h1>{s.name}</h1>
         <p className="pp-variant">{s.variant}</p>
         <p className="pp-facts">
-          {fmtMin(s.minutes)} &middot; {s.people === 2 ? "two people" : "one person"} &middot; {total} steps &middot; {t.panels} panels &middot; {t.fittings} fittings
+          {fmtMin(s.minutes)} &middot; {s.people === 2 ? t("print.twoPeople") : t("print.onePerson")} &middot; {tn("count.steps", total)} &middot; {tn("count.panels", tot.panels)} &middot; {tn("count.fittings", tot.fittings)}
         </p>
         <div className="pp-hero">
           <Thumb id={id} plan={plan} mode={{ kind: "assembled" }} w={640} h={420} />
         </div>
         {tools.length > 0 && (
           <>
-            <h2>Tools</h2>
+            <h2>{t("print.tools")}</h2>
             <ul className="pp-tools">
               {tools.map((x) => (
                 <li key={x.id}>
                   <ToolArt id={x.id} size={44} />
                   <span>
                     {TOOL_INFO[x.id].name}
-                    {x.optional ? " (nice to have)" : ""}
+                    {x.optional ? t("print.niceToHave") : ""}
                   </span>
                 </li>
               ))}
@@ -109,7 +109,7 @@ function Doc({ plan, slug }: { plan: Plan; slug: string }) {
         )}
         <div className="pp-cols">
           <div>
-            <h2>Panels</h2>
+            <h2>{t("print.panels")}</h2>
             <ul className="pp-parts">
               {plan.parts
                 .filter((p) => !p.extra)
@@ -123,7 +123,7 @@ function Doc({ plan, slug }: { plan: Plan; slug: string }) {
             </ul>
           </div>
           <div>
-            <h2>Fittings</h2>
+            <h2>{t("print.fittings")}</h2>
             <ul className="pp-hw">
               {plan.hardware.map((h) => (
                 <li key={h.id}>
@@ -132,7 +132,7 @@ function Doc({ plan, slug }: { plan: Plan; slug: string }) {
                   </span>
                   <span>
                     {h.name} <small>{h.spec}</small>
-                    {h.notIncluded ? <small> (not in the box)</small> : null}
+                    {h.notIncluded ? <small>{t("print.notInBox")}</small> : null}
                   </span>
                   <em>{h.qty}&times;</em>
                 </li>
@@ -141,8 +141,8 @@ function Doc({ plan, slug }: { plan: Plan; slug: string }) {
           </div>
         </div>
         <footer className="pp-foot">
-          <span>Follow it in 3D, read out loud: {url}</span>
-          <span>Not affiliated with IKEA. Check each step against the paper manual.</span>
+          <span>{t("print.follow", { url })}</span>
+          <span>{t("print.note")}</span>
         </footer>
       </section>
 
@@ -167,7 +167,7 @@ function Doc({ plan, slug }: { plan: Plan; slug: string }) {
                       </span>
                     )}
                     {st.people === 2 && (
-                      <span className="ps-two" title="Two people">
+                      <span className="ps-two" title={t("print.twoTitle")}>
                         <IPeople size={18} />
                       </span>
                     )}
@@ -175,7 +175,7 @@ function Doc({ plan, slug }: { plan: Plan; slug: string }) {
                   <Thumb id={id} plan={plan} mode={{ kind: "step", index: i }} w={520} h={360} className="ps-art" />
                   <p className="ps-title">
                     {st.title}
-                    {st.repeat && st.repeat > 1 ? ` (do this ${st.repeat} times)` : ""}
+                    {st.repeat && st.repeat > 1 ? t("print.repeat", { n: st.repeat }) : ""}
                   </p>
                 </article>
               );

@@ -4,10 +4,11 @@ import { useEffect, useState } from "react";
 import { AnimatePresence, motion } from "motion/react";
 import { Figure } from "../art/Figure";
 import { ISparkle } from "../art/Icons";
+import { t, upper } from "@/lib/i18n";
 
 /** Shown while Together AI works out an unknown product: a flat pack box opening, panels peeking out. */
 export default function Loader({ query, ai }: { query: string; ai: boolean }) {
-  const lines = [`Looking up ${query.toUpperCase()}`, "Reading the measurements", "Sorting the hardware", "Counting the fittings", "Drawing the steps"];
+  const lines = [t("loader.looking", { name: upper(query) }), t("loader.measurements"), t("loader.hardware"), t("loader.fittings"), t("loader.steps")];
   const [i, setI] = useState(0);
   useEffect(() => {
     const t = setInterval(() => setI((x) => Math.min(lines.length - 1, x + 1)), 1700);
@@ -44,7 +45,7 @@ export default function Loader({ query, ai }: { query: string; ai: boolean }) {
         </div>
         {ai && (
           <span className="ai-badge quiet">
-            <ISparkle size={15} /> Thinking with Together AI
+            <ISparkle size={15} /> {t("loader.thinking")}
           </span>
         )}
       </div>

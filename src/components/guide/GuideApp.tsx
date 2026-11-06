@@ -38,6 +38,7 @@ import KeyModal, { type KeyTrouble, type KeyWhy } from "../KeyModal";
 import { decodeSpec } from "@/lib/scan/share";
 import { track } from "@vercel/analytics";
 import { SCAN_ENABLED } from "@/lib/site";
+import { LOCALE, lower, manualSearchUrl, t, tOr, upper } from "@/lib/i18n";
 
 type Via = "catalog" | "ai" | "guess" | "scan";
 
@@ -152,26 +153,26 @@ export default function GuideApp({ slug, query, step, kind }: { slug: string; qu
 
   if (status === "scangone")
     return (
-      <Shell title="Scanned guide">
+      <Shell title={t("guide.scannedTitle")}>
         <div className="notfound">
           <Figure pose="think" bubble="?" size={120} />
-          <h1>This guide lives on another device</h1>
-          <p className="sub">Scanned guides are saved in the browser that made them. Ask for a share link from the done screen{SCAN_ENABLED ? ", or scan the manual again" : ""}.</p>
+          <h1>{t("scanGone.title")}</h1>
+          <p className="sub">{SCAN_ENABLED ? t("scanGone.bodyScan") : t("scanGone.body")}</p>
           <Link href={SCAN_ENABLED ? "/scan" : "/"} className="btn primary">
-            {SCAN_ENABLED ? "Scan a manual" : "Back to search"}
+            {SCAN_ENABLED ? t("scanGone.scan") : t("scanGone.search")}
           </Link>
         </div>
       </Shell>
     );
   if (status === "loading")
     return (
-      <Shell title={isScan ? "Scanned guide" : q.toUpperCase()}>
-        <Loader query={isScan ? "your guide" : q} ai={ai} />
+      <Shell title={isScan ? t("guide.scannedTitle") : upper(q)}>
+        <Loader query={isScan ? t("loader.yourGuide") : q} ai={ai} />
       </Shell>
     );
   if (status === "notfound" || status === "error" || !plan)
     return (
-      <Shell title={q.toUpperCase()}>
+      <Shell title={upper(q)}>
         <NotFound
           query={q}
           slug={slug}
@@ -191,12 +192,12 @@ export default function GuideApp({ slug, query, step, kind }: { slug: string; qu
   const ownSteps =
     via === "guess" && !initial && mounted && !loadProgress(slug)
       ? !ai
-        ? { text: `Add your Together AI key for ${plan.spec.name}'s own steps`, act: () => setAskKey("") }
+        ? { text: t("ownSteps.add", { name: plan.spec.name }), act: () => setAskKey("") }
         : trouble === "key"
-          ? { text: `Together turned your key away. Fix it for ${plan.spec.name}'s own steps`, act: () => setAskKey("key") }
+          ? { text: t("ownSteps.key", { name: plan.spec.name }), act: () => setAskKey("key") }
           : trouble === "credits"
-            ? { text: "Your Together credit ran out. Top it up, then tap here to try again", act: again }
-            : { text: `Try again for ${plan.spec.name}'s own steps`, act: again }
+            ? { text: t("ownSteps.credits"), act: again }
+            : { text: t("ownSteps.retry", { name: plan.spec.name }), act: again }
       : undefined;
   return (
     <>
@@ -210,7 +211,7 @@ function Shell({ title, children }: { title: string; children: React.ReactNode }
   return (
     <div className="guide shell">
       <header className="topbar">
-        <Link href="/" className="home-btn" aria-label="Bygga home">
+        <Link href="/" className="home-btn" aria-label={t("guide.home")}>
           <LogoMark size={34} />
         </Link>
         <div className="tb-title">
@@ -243,17 +244,17 @@ function NotFound({
   onAddKey: () => void;
   onRetry: () => void;
 }) {
-  const name = query.split(" ")[0].toUpperCase();
-  const what = ikea?.toLowerCase();
+  const name = upper(query.split(" ")[0]);
+  const what = ikea ? lower(ikea) : undefined;
   const kinds = KIND_LABELS;
   if (error)
     return (
       <div className="notfound">
         <Figure pose="think" bubble="?" size={120} />
-        <h1>Something went wrong</h1>
-        <p className="sub">Check your connection and try again.</p>
+        <h1>{t("notFound.error")}</h1>
+        <p className="sub">{t("notFound.errorBody")}</p>
         <Link href="/" className="btn primary">
-          Back to search
+          {t("notFound.searchBack")}
         </Link>
       </div>
     );
@@ -264,21 +265,19 @@ function NotFound({
         <div>
           {what ? (
             <>
-              <h1>
-                {name} is {/^[aeiou]/.test(what) ? "an" : "a"} {what}
-              </h1>
+              <h1>{t("notFound.whatIs", { name, article: /^[aeiou]/.test(what) ? "an" : "a", what })}</h1>
               <p className="sub">
-                We can&apos;t draw {what.replace(/s$/, "")}s step by step yet, so trust the paper manual for this one.{" "}
-                <a href={`https://www.ikea.com/search/?q=${encodeURIComponent(name)}`} target="_blank" rel="noreferrer">
-                  Find it on ikea.com
+                {t("notFound.whatBody", { what: LOCALE === "tr" ? what : what.replace(/s$/, "") + "s" })}{" "}
+                <a href={manualSearchUrl(name)} target="_blank" rel="noreferrer">
+                  {t("notFound.whatFind")}
                 </a>
-                . If it looks like one of these, a typical build can still help.
+                . {t("notFound.whatTail")}
               </p>
             </>
           ) : (
             <>
-              <h1>What does {name} look like?</h1>
-              <p className="sub">We don&apos;t have {name} on file yet. Pick the closest shape and we&apos;ll walk you through a typical build.</p>
+              <h1>{t("notFound.look", { name })}</h1>
+              <p className="sub">{t("notFound.lookBody", { name })}</p>
             </>
           )}
         </div>
@@ -289,24 +288,24 @@ function NotFound({
           <span>
             {trouble === "credits" ? (
               <>
-                <b>Your Together credit ran out.</b>{" "}
+                <b>{t("notFound.creditsLead")}</b>{" "}
                 <a href="https://api.together.ai/settings/billing" target="_blank" rel="noreferrer">
-                  Top it up
+                  {t("notFound.creditsLink")}
                 </a>{" "}
-                and AI can work out {name}&apos;s own steps.
+                {t("notFound.creditsTail", { name })}
               </>
             ) : trouble === "key" ? (
               <>
-                <b>Together turned your key away.</b> Fix it and AI can work out {name}&apos;s own steps.
+                <b>{t("notFound.keyLead")}</b> {t("notFound.keyTail", { name })}
               </>
             ) : (
               <>
-                <b>Want {name}&apos;s own steps?</b> Add your Together AI key and AI works them out, for about a cent.
+                <b>{t("notFound.wantLead", { name })}</b> {t("notFound.wantTail")}
               </>
             )}
           </span>
           <button className="btn nf-ai-go" onClick={trouble === "credits" ? onRetry : onAddKey}>
-            {trouble === "credits" ? "Try again" : trouble ? "Fix it" : "Add key"}
+            {trouble === "credits" ? t("notFound.tryAgain") : trouble ? t("notFound.fix") : t("notFound.addKey")}
           </button>
         </div>
       )}
@@ -315,14 +314,14 @@ function NotFound({
           <motion.div key={k.kind} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.025 }}>
             <Link className="kind-card" href={`/build/${slug}?q=${encodeURIComponent(query)}&kind=${k.kind}`}>
               <Drawing name={"kind-" + k.kind} w={200} h={150} className="kind-thumb" eager />
-              <span>{k.label}</span>
+              <span>{tOr(`kind.${k.kind}`, k.label)}</span>
             </Link>
           </motion.div>
         ))}
       </div>
       {suggestions.length > 0 && (
         <div className="chips center">
-          <span className="muted">Or did you mean</span>
+          <span className="muted">{t("notFound.didYouMean")}</span>
           {suggestions.map((s) => (
             <Link key={s} className="chip" href={`/build/${encodeURIComponent(s.toLowerCase().replace(/\s+/g, "-"))}?q=${encodeURIComponent(s)}`}>
               {s}
@@ -334,7 +333,7 @@ function NotFound({
         <Link href="/scan" className="scan-link nf-scan">
           <IScan size={17} />
           <span>
-            Not from IKEA? <u>Scan its paper manual</u>
+            {t("notFound.notIkea")} <u>{t("notFound.scanManual")}</u>
           </span>
         </Link>
       )}
@@ -484,8 +483,8 @@ function Guide({ plan, slug, via, ai, startStep, onOwnSteps }: { plan: Plan; slu
         playStep();
         const n = step + 1;
         const half = Math.floor(steps.length / 2);
-        if (steps.length >= 6 && n === half) showToast("Halfway there. Nice work.");
-        else if (n === steps.length - 1 && steps.length >= 4) showToast("Last step coming up.");
+        if (steps.length >= 6 && n === half) showToast(t("guide.halfway"));
+        else if (n === steps.length - 1 && steps.length >= 4) showToast(t("guide.lastComing"));
         go("steps", n);
       } else {
         playDone();
@@ -741,7 +740,7 @@ function Guide({ plan, slug, via, ai, startStep, onOwnSteps }: { plan: Plan; slu
   useEffect(() => {
     if (!voiceOn || phase !== "steps") return;
     return mediaSession(
-      { title: `Step ${step + 1} of ${steps.length}`, artist: plan.spec.name },
+      { title: t("guide.mediaTitle", { n: step + 1, total: steps.length }), artist: plan.spec.name },
       {
         next: () => !live.current.asking && live.current.next(),
         back: () => !live.current.asking && live.current.back(),
@@ -755,7 +754,11 @@ function Guide({ plan, slug, via, ai, startStep, onOwnSteps }: { plan: Plan; slu
     const s = plan.spec;
     // the cover keeps the page's own title; steps and the end say where you are
     document.title =
-      phase === "steps" ? `Step ${step + 1} of ${steps.length}, ${s.name} | Bygga` : phase === "done" ? `Built: ${s.name} | Bygga` : `${s.name} ${s.variant.toLowerCase()}: assembly step by step | Bygga`;
+      phase === "steps"
+        ? t("meta.stepTitle", { n: step + 1, total: steps.length, name: s.name })
+        : phase === "done"
+          ? t("meta.doneTitle", { name: s.name })
+          : t("meta.coverTitle", { name: s.name, variant: lower(s.variant) });
   }, [phase, step, steps.length, plan.spec]);
 
   const mode: StageMode = useMemo(() => {
@@ -777,7 +780,7 @@ function Guide({ plan, slug, via, ai, startStep, onOwnSteps }: { plan: Plan; slu
   return (
     <div className="guide" data-phase={phase} data-voice={voiceOn ? "on" : undefined}>
       <header className="topbar">
-        <Link href="/" className="home-btn" aria-label="Bygga home">
+        <Link href="/" className="home-btn" aria-label={t("guide.home")}>
           <LogoMark size={34} />
         </Link>
         <div className="tb-title">
@@ -787,7 +790,7 @@ function Guide({ plan, slug, via, ai, startStep, onOwnSteps }: { plan: Plan; slu
         <Stepper phase={phase} step={step} total={steps.length} reached={reached} onJump={jump} />
         <div className="tb-actions">
           {phase === "steps" && (
-            <button className="icon-btn" onClick={() => setOverview(true)} aria-label="All steps" data-tip="All steps">
+            <button className="icon-btn" onClick={() => setOverview(true)} aria-label={t("guide.allSteps")} data-tip={t("guide.allSteps")}>
               <IGrid />
             </button>
           )}
@@ -798,26 +801,26 @@ function Guide({ plan, slug, via, ai, startStep, onOwnSteps }: { plan: Plan; slu
               setSoundState(!sound);
             }}
             aria-pressed={sound}
-            aria-label={sound ? "Sound on" : "Sound off"}
-            data-tip={sound ? "Sound on" : "Sound off"}
+            aria-label={sound ? t("guide.soundOn") : t("guide.soundOff")}
+            data-tip={sound ? t("guide.soundOn") : t("guide.soundOff")}
           >
             {sound ? <ISound /> : <ISoundOff />}
           </button>
           {phase === "steps" && (
-            <button className={"voice-btn" + (voiceOn ? " on" : "")} onClick={() => (voiceOn ? stopVoice() : turnOnVoice())} aria-pressed={voiceOn} aria-label={voiceOn ? "Turn voice off" : "Turn voice on"} data-tip="Voice (V)">
+            <button className={"voice-btn" + (voiceOn ? " on" : "")} onClick={() => (voiceOn ? stopVoice() : turnOnVoice())} aria-pressed={voiceOn} aria-label={voiceOn ? t("guide.voiceTurnOff") : t("guide.voiceTurnOn")} data-tip={t("guide.voiceTip")}>
               <IMic size={18} />
-              <span>{voiceOn ? "Voice on" : "Voice"}</span>
+              <span>{voiceOn ? t("guide.voiceOn") : t("guide.voice")}</span>
             </button>
           )}
           <Feedback ctx={{ slug: plan.spec.slug ?? slug, name: plan.spec.name, variant: plan.spec.variant, phase, step: phase === "steps" ? step + 1 : undefined }} />
-          <button className="icon-btn" onClick={() => setHelp({})} aria-label="Help" data-tip="Help">
+          <button className="icon-btn" onClick={() => setHelp({})} aria-label={t("guide.help")} data-tip={t("guide.help")}>
             <IHelp />
           </button>
         </div>
       </header>
 
       <main className="guide-main">
-        <section className="sheet" aria-label="Assembly drawing">
+        <section className="sheet" aria-label={t("guide.drawing")}>
           <StageView
             plan={plan}
             mode={mode}
@@ -886,26 +889,26 @@ function Guide({ plan, slug, via, ai, startStep, onOwnSteps }: { plan: Plan; slu
 
           {phase === "steps" && (
             <div className="stage-ctl">
-              <button className="icon-btn float" onClick={() => stage.current?.replay()} aria-label="Replay animation" data-tip="Replay (R)">
+              <button className="icon-btn float" onClick={() => stage.current?.replay()} aria-label={t("guide.replay")} data-tip={t("guide.replayTip")}>
                 <IReplay />
               </button>
-              <button className="icon-btn float" onClick={() => setPaused((p) => !p)} aria-label={paused ? "Play" : "Pause"} data-tip={paused ? "Play" : "Pause"}>
+              <button className="icon-btn float" onClick={() => setPaused((p) => !p)} aria-label={paused ? t("guide.play") : t("guide.pause")} data-tip={paused ? t("guide.play") : t("guide.pause")}>
                 {paused ? <IPlay /> : <IPause />}
               </button>
               <button className={"pill-btn float" + (slow ? " on" : "")} onClick={() => setSlow(!slow)} aria-pressed={slow}>
-                Slow
+                {t("guide.slow")}
               </button>
               <AnimatePresence>
                 {moved && (
                   <motion.button initial={{ opacity: 0, x: -8 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0 }} className="pill-btn float" onClick={() => stage.current?.resetView()}>
-                    <IRotate size={15} /> Reset view
+                    <IRotate size={15} /> {t("guide.resetView")}
                   </motion.button>
                 )}
               </AnimatePresence>
             </div>
           )}
-          {phase === "steps" && step === 0 && !moved && <span className="drag-hint">Drag to turn it around</span>}
-          {phase === "parts" && <span className="sheet-caption">Lay your panels out like this</span>}
+          {phase === "steps" && step === 0 && !moved && <span className="drag-hint">{t("guide.dragHint")}</span>}
+          {phase === "parts" && <span className="sheet-caption">{t("guide.layoutCaption")}</span>}
           {voiceOn && phase === "steps" && (
             <div className="listening" role="status">
               <span className={"eq" + (speaking ? " on" : "")} aria-hidden="true">
@@ -915,30 +918,30 @@ function Guide({ plan, slug, via, ai, startStep, onOwnSteps }: { plan: Plan; slu
               </span>
               <span className="listening-text">
                 {!canListen && mounted && micSupported()
-                  ? "Reading aloud"
+                  ? t("listen.reading")
                   : mic === "refused"
-                    ? "Together turned your key away"
+                    ? t("listen.refused")
                     : mic === "credits"
-                      ? "Your Together credit ran out"
+                      ? t("listen.credits")
                       : heard
-                  ? `Heard “${heard}”`
-                  : mic === "on"
-                    ? "Say “next” when you're ready"
-                    : mic === "paused"
-                      ? "Tap anywhere to keep listening"
-                      : mic === "asking"
-                        ? "Allow the microphone, then say “next”"
-                        : mic === "denied"
-                          ? "Mic is blocked. Tap done to move on"
-                          : mic === "busy"
-                            ? "Another app has the mic. Tap done to move on"
-                            : mic === "nomic"
-                              ? "No microphone found. Tap done to move on"
-                              : mic === "offline"
-                                ? "Can't listen right now. Tap done to move on"
-                                : mic === "unsupported" || !canListen
-                                  ? "Reading aloud. Tap done to move on"
-                                  : "Turning on the mic"}
+                        ? t("listen.heard", { text: heard })
+                        : mic === "on"
+                          ? t("listen.on")
+                          : mic === "paused"
+                            ? t("listen.paused")
+                            : mic === "asking"
+                              ? t("listen.asking")
+                              : mic === "denied"
+                                ? t("listen.denied")
+                                : mic === "busy"
+                                  ? t("listen.busy")
+                                  : mic === "nomic"
+                                    ? t("listen.nomic")
+                                    : mic === "offline"
+                                      ? t("listen.offline")
+                                      : mic === "unsupported" || !canListen
+                                        ? t("listen.unsupported")
+                                        : t("listen.starting")}
               </span>
               {((!canListen && mounted && micSupported()) || mic === "refused" || mic === "credits") && (
                 <button
@@ -948,14 +951,14 @@ function Guide({ plan, slug, via, ai, startStep, onOwnSteps }: { plan: Plan; slu
                     setAskKey(mic === "refused" ? { why: "key", trouble: "key" } : mic === "credits" ? { why: "key", trouble: "credits" } : { why: "voice", then: "tip" });
                   }}
                 >
-                  {mic === "credits" ? "Top up" : mic === "refused" ? "Fix key" : "Turn on “next”"}
+                  {mic === "credits" ? t("listen.topUp") : mic === "refused" ? t("listen.fixKey") : t("listen.turnOn")}
                 </button>
               )}
             </div>
           )}
           {(via === "ai" || via === "scan") && phase === "cover" && (
             <span className="sheet-caption ai">
-              <ISparkle size={15} /> {via === "scan" ? "Made from your manual with Together AI" : "Drafted with Together AI"}
+              <ISparkle size={15} /> {via === "scan" ? t("guide.captionScan") : t("guide.captionAi")}
             </span>
           )}
         </section>
@@ -1036,7 +1039,7 @@ function Guide({ plan, slug, via, ai, startStep, onOwnSteps }: { plan: Plan; slu
 
       {phase === "done" && <Confetti />}
       <p className="sr-only" aria-live="polite">
-        {phase === "steps" ? `Step ${step + 1} of ${steps.length}. ${cur?.title ?? ""}. ${cur?.detail ?? ""}` : phase === "done" ? `You built ${plan.spec.name}.` : ""}
+        {phase === "steps" ? t("guide.srStep", { n: step + 1, total: steps.length, title: cur?.title ?? "", detail: cur?.detail ?? "" }) : phase === "done" ? t("guide.srDone", { name: plan.spec.name }) : ""}
       </p>
 
       <AnimatePresence>
@@ -1064,7 +1067,7 @@ function Guide({ plan, slug, via, ai, startStep, onOwnSteps }: { plan: Plan; slu
           <KeyModal
             why={askKey.why}
             trouble={askKey.trouble}
-            skip={askKey.then === "voice" && readable ? "Just read it aloud" : undefined}
+            skip={askKey.then === "voice" && readable ? t("guide.justRead") : undefined}
             onSkip={() => {
               setAskKey(null);
               skipKey();
@@ -1135,14 +1138,14 @@ function toggle(s: Set<string>, id: string) {
 /** Where you are: Tools, Parts, Build, Done. Earlier phases can be revisited. */
 function Stepper({ phase, step, total, reached, onJump }: { phase: Phase; step: number; total: number; reached: number; onJump: (p: Phase) => void }) {
   const items: { id: Phase; label: string }[] = [
-    { id: "tools", label: "Tools" },
-    { id: "parts", label: "Parts" },
-    { id: "steps", label: "Build" },
-    { id: "done", label: "Done" },
+    { id: "tools", label: t("stepper.tools") },
+    { id: "parts", label: t("stepper.parts") },
+    { id: "steps", label: t("stepper.build") },
+    { id: "done", label: t("stepper.done") },
   ];
   const cur = PHASES.indexOf(phase);
   return (
-    <nav className="stepper" aria-label="Progress">
+    <nav className="stepper" aria-label={t("stepper.aria")}>
       {items.map((it) => {
         const idx = PHASES.indexOf(it.id);
         const state = idx < cur ? "done" : idx === cur ? "now" : "next";

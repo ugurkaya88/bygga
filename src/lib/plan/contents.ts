@@ -1,4 +1,5 @@
 import type { HwType, PartType, Plan, StepKind, TipKey } from "../types";
+import { num } from "../i18n";
 
 const TIP_FOR: Partial<Record<StepKind, TipKey>> = {
   join: "frame",
@@ -73,5 +74,5 @@ export function floorSpace(plan: Plan) {
   const a = Math.max(w, h) + 100;
   const b = Math.max(d, Math.min(w, h)) + 100;
   const r = (x: number) => Math.max(1, Math.round(x / 50) / 2);
-  return `${r(a)} × ${r(b)} m`;
+  return `${num(r(a))} × ${num(r(b))} m`;
 }

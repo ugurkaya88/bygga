@@ -9,6 +9,7 @@ import "./scan.css";
 import { Analytics } from "@vercel/analytics/next";
 import Offline from "@/components/Offline";
 import { SITE_URL } from "@/lib/site";
+import { LOCALE } from "@/lib/i18n";
 
 const noto = Noto_Sans({
   subsets: ["latin", "latin-ext"],
@@ -44,7 +45,7 @@ export const viewport: Viewport = {
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   return (
-    <html lang="en" className={`${noto.variable} ${display.variable}`}>
+    <html lang={LOCALE} className={`${noto.variable} ${display.variable}`}>
       <body>
         {children}
         <Analytics />

@@ -5,6 +5,7 @@ import { motion } from "motion/react";
 import type { Plan } from "@/lib/types";
 import Thumb from "../Thumb";
 import { ICheck, IClose } from "../art/Icons";
+import { t } from "@/lib/i18n";
 
 export default function Overview({ plan, current, doneUpTo, onPick, onClose }: { plan: Plan; current: number; doneUpTo: number; onPick: (i: number) => void; onClose: () => void }) {
   useEffect(() => {
@@ -18,7 +19,7 @@ export default function Overview({ plan, current, doneUpTo, onPick, onClose }: {
       <motion.div
         className="overview"
         role="dialog"
-        aria-label="All steps"
+        aria-label={t("overview.title")}
         initial={{ y: 30, opacity: 0 }}
         animate={{ y: 0, opacity: 1 }}
         exit={{ y: 20, opacity: 0 }}
@@ -27,10 +28,10 @@ export default function Overview({ plan, current, doneUpTo, onPick, onClose }: {
       >
         <div className="overview-head">
           <div>
-            <h2>All steps</h2>
-            <p className="sub">Like flipping through the manual. Tap any page to jump there.</p>
+            <h2>{t("overview.title")}</h2>
+            <p className="sub">{t("overview.sub")}</p>
           </div>
-          <button className="btn round small" onClick={onClose} aria-label="Close">
+          <button className="btn round small" onClick={onClose} aria-label={t("common.close")}>
             <IClose />
           </button>
         </div>

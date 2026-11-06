@@ -1,4 +1,5 @@
 import type { CustomFix, CustomPart, CustomStep, HwItem, HwKind, PartMaterial, Pose, ProductSpec, StepKind, ToolId, Vec3, WarnId } from "../types";
+import { t } from "../i18n";
 import { HW, PlanBuilder, type FitOpts, type HwDef } from "./builder";
 import { POSE_EULER, rotate, unrotate } from "./math";
 
@@ -712,8 +713,8 @@ function normalizeSteps(steps: CustomStep[], parts: CustomPart[]): CustomStep[] 
   if (missing.length) {
     const last = [...out].reverse().find((s) => s.add && s.add.length);
     if (last && missing.length <= 2) last.add = [...(last.add ?? []), ...missing];
-    else out.push({ title: "Fit the remaining parts", detail: "Check each one against the drawing before you fix it.", add: missing });
+    else out.push({ title: t("plan.fitRest"), detail: t("plan.fitRestDetail"), add: missing });
   }
-  if (!out.length) out.push({ title: "Put it together", add: parts.map((p) => p.id) });
+  if (!out.length) out.push({ title: t("plan.putTogether"), add: parts.map((p) => p.id) });
   return out;
 }
