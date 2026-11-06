@@ -514,6 +514,7 @@ const en = {
   "hw.hinge": "Hinge",
   "hw.hingePlate": "Hinge plate",
   "hw.glide": "Felt pad",
+  "hw.glideStrip": "Glide strip",
   "hw.plug": "Wall plug",
   "hw.castor": "Castor",
   "hw.gasLift": "Gas lift",

@@ -80,6 +80,7 @@ const HW_WORDS: [RegExp, HwKind | null][] = [
   [/handle|pull/, "handle"],
   [/bracket|wall|anchor|anti.?tip|strap/, "bracket"],
   [/(corner|triangle|triangular).?foot/, "cornerFoot"],
+  [/(glide|felt|pad|foot).?strip|strip.?(glide|pad|foot)/, "glideStrip"],
   [/felt|glide|pad|foot/, "glide"],
   [/plate/, "plate"],
   [/nail|tack|staple/, "nail"],

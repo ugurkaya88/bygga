@@ -318,6 +318,7 @@ export type HwKind =
   | "hinge"
   | "hingePlate"
   | "glide"
+  | "glideStrip"
   | "plug"
   | "castor"
   | "gasLift"

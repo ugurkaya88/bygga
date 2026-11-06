@@ -49,6 +49,7 @@ export const HW = {
   hinge: { kind: "hinge", len: 50, dia: 35 },
   hingePlate: { kind: "hingePlate", len: 10, dia: 40 },
   glide: { kind: "glide", len: 4, dia: 20 },
+  glideStrip: { kind: "glideStrip", len: 5, dia: 60 }, // a stick-on plastic strip: len its thickness, dia its length
   wallScrew: { kind: "screw", len: 50, dia: 5, notIncluded: true },
   plug: { kind: "plug", len: 35, dia: 8, notIncluded: true },
   castor: { kind: "castor", len: 58, dia: 50 },

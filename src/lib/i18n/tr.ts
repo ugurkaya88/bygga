@@ -516,6 +516,7 @@ const tr: Record<keyof typeof en, string> = {
   "hw.hinge": "Menteşe",
   "hw.hingePlate": "Menteşe tabanı",
   "hw.glide": "Keçe",
+  "hw.glideStrip": "Kaydırmaz şerit",
   "hw.plug": "Duvar dübeli",
   "hw.castor": "Tekerlek",
   "hw.gasLift": "Gazlı piston",

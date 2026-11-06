@@ -168,6 +168,8 @@ function defFor(f: CustomFix, thick?: number): HwDef {
         return HW.hingePlate;
       case "glide":
         return HW.glide;
+      case "glideStrip":
+        return HW.glideStrip;
       case "clip":
         return HW.clip;
       case "strap":
@@ -531,7 +533,7 @@ function planFits(f: CustomFix, contacts: Contact[], fresh: Node[], placed: Node
     const fits: Fit[] = f.at.map((at) => {
       const host = (f.on && nodes.get(f.on)) || nearest(pool.length ? pool : [...nodes.values()], at);
       const mate = f.mate ? nodes.get(f.mate) : undefined;
-      return { on: host.key, host, at, dir, mate: mate?.key, twist: f.twist, hole: f.kind === "nail" || f.kind === "glide" || f.kind === "cornerFoot" || f.kind === "clip" ? false : undefined };
+      return { on: host.key, host, at, dir, mate: mate?.key, twist: f.twist, hole: f.kind === "nail" || f.kind === "glide" || f.kind === "glideStrip" || f.kind === "cornerFoot" || f.kind === "clip" ? false : undefined };
     });
     return [{ def: defFor(f), fits, exact: true }];
   }
@@ -630,6 +632,7 @@ function planFits(f: CustomFix, contacts: Contact[], fresh: Node[], placed: Node
       break;
     }
     case "glide":
+    case "glideStrip":
     case "cornerFoot": {
       // felt pads and corner feet go under the corners of the whole footprint
       const floor = [...fresh, ...placed].filter((n, i, a) => n.box.min[1] < 3 && a.indexOf(n) === i);
@@ -642,7 +645,9 @@ function planFits(f: CustomFix, contacts: Contact[], fresh: Node[], placed: Node
       for (const [cx, cz] of corners.slice(0, count)) {
         let best: { n: Node; p: Vec3; d: number } | null = null;
         for (const n of floor) {
-          const ix = Math.min(25, ext(n.box, 0) / 4), iz = Math.min(25, ext(n.box, 2) / 4);
+          // a strip lies along the depth, its long side clear of the corner
+          const strip = f.kind === "glideStrip";
+          const ix = strip ? Math.min(10, ext(n.box, 0) / 2) : Math.min(25, ext(n.box, 0) / 4), iz = strip ? Math.min(35, ext(n.box, 2) / 2) : Math.min(25, ext(n.box, 2) / 4);
           const p: Vec3 = [Math.min(n.box.max[0] - ix, Math.max(n.box.min[0] + ix, cx)), 0, Math.min(n.box.max[2] - iz, Math.max(n.box.min[2] + iz, cz))];
           const d = Math.hypot(p[0] - cx, p[2] - cz);
           if (!best || d < best.d) best = { n, p, d };

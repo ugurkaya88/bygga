@@ -266,6 +266,24 @@ function draw(kind: HwKind, len: number, dia: number): Drawn {
       };
     case "glide":
       return { w: 20, h: 10, scalable: true, node: <g><path d="M0 -1 V2 A10 3.6 0 0 0 20 2 V-1" fill={PLASTIC} {...stroke} /><ellipse cx={10} cy={-1} rx={10} ry={3.6} fill={PLASTIC} {...stroke} /></g> };
+    case "glideStrip":
+      // a stick-on plastic strip seen from above, notched down both long edges
+      return {
+        w: 60,
+        h: 18,
+        scalable: true,
+        node: (
+          <g>
+            <rect x={0} y={-9} width={60} height={18} rx={2.5} fill={PLASTIC} {...stroke} />
+            {[12, 30, 48].map((x) => (
+              <g key={x}>
+                <rect x={x - 2} y={-9} width={4} height={2.5} fill="#fff" {...fine} />
+                <rect x={x - 2} y={6.5} width={4} height={2.5} fill="#fff" {...fine} />
+              </g>
+            ))}
+          </g>
+        ),
+      };
     case "plug": {
       const ribs = [];
       for (let x = 5; x < len - 3; x += 4) ribs.push(<path key={x} d={`M${x} ${-r} L${x + 1.6} 0 L${x} ${r}`} fill="none" {...fine} />);

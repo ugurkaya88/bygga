@@ -264,6 +264,12 @@ export function hwDrawable(kind: HwKind, len: number, dia: number) {
     case "glide":
       addSolid(d, "glide", cyl(10, 4, 18), plastic, { hull: "cyl", position: [0, 2, 0] });
       break;
+    case "glideStrip":
+      // a stick-on plastic strip, its long side along local z, with notches down both long edges
+      addSolid(d, `gs:${len}:${dia}`, () => new THREE.BoxGeometry(18, len, dia), plastic, { position: [0, len / 2, 0] });
+      for (const z of [-dia * 0.3, 0, dia * 0.3])
+        for (const x of [-8.2, 8.2]) addSolid(d, `gs:notch:${len}`, () => new THREE.BoxGeometry(1.8, len + 0.3, 4), FACE.hwMetal, { position: [x, len / 2, z], edges: false });
+      break;
     case "hingePlate":
       // a clip-on mounting plate seen from the front: screw wings across, the raised body the hinge arm clips onto along z
       addSolid(d, `hp:wing:${dia}`, () => new THREE.BoxGeometry(dia, 2, 12), metal, { position: [0, 1, 0] });
