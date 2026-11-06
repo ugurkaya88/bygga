@@ -12,7 +12,8 @@ import { getPref, setPref } from "@/lib/store";
 
 /**
  * Parts are ticked off as they are found: a tick means "I have it", in green.
- * "Everything's here" ticks the rest in a quick cascade; whatever is left unticked on Continue counts as missing.
+ * "Tick all" ticks every row at once (and clears them when all are ticked); "Everything's here" ticks the rest in a
+ * quick cascade; whatever is left unticked on Continue counts as missing.
  */
 export default function PartsPanel({
   plan,
@@ -46,6 +47,15 @@ export default function PartsPanel({
   const nHave = ids.filter((i) => ok.has(i)).length;
   const nMissing = nHave > 0 ? ids.length - nHave : 0;
   const partial = nHave > 0 && nHave < ids.length;
+  const all = nHave === ids.length;
+
+  // ticks every row at once, or clears them all when everything is ticked
+  const tickAll = () => {
+    if (going) return;
+    haptic();
+    if (!all) playTick();
+    setOk(all ? new Set() : new Set(ids));
+  };
 
   const confirm = () => {
     if (going) return;
@@ -125,6 +135,9 @@ export default function PartsPanel({
 
         <h3 className="section-title">
           Panels <span className="count-pill">{panels.reduce((s, p) => s + p.qty, 0)}</span>
+          <button className={"toggle" + (all ? " on" : "")} onClick={tickAll} aria-pressed={all}>
+            <ICheck size={15} strokeWidth={3} /> {all ? "Untick all" : "Tick all"}
+          </button>
         </h3>
         <div className="plist">
           {panels.map((p, i) =>
