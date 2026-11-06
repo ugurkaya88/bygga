@@ -275,7 +275,7 @@ const tr: Record<keyof typeof en, string> = {
   "parts.missingHelp": "Eksik parça nasıl alınır",
   "parts.allSet": "Tamam",
   "parts.continueMissing": "{n} eksikle devam et",
-  "parts.allHere": "Hepsi burada",
+  "parts.allHere": "Hepsi mevcut",
   "parts.calibAria": "Gerçek boyutu ayarla",
   "parts.calibTitle": "Banka kartıyla eşle",
   "parts.calibSub": "Bir kartı ekrana tut, çerçeve kartın kenarlarına oturana kadar kaydır.",

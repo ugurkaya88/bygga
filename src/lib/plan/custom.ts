@@ -467,19 +467,43 @@ function lookahead(steps: CustomStep[], si: number, nodes: Map<string, Node>, pl
 function approach(n: Node, others: Node[], pose: Pose): Vec3 {
   let best: Contact | null = null;
   let bestLen = 0;
+  // a thin back or bottom panel goes on with its broad face: count those contacts half again, so it comes from
+  // behind rather than sliding in edge-on past the one beside it
+  const ext = [0, 1, 2].map((k) => n.box.max[k] - n.box.min[k]);
+  const thin = Math.min(...ext) <= 6 ? ext.indexOf(Math.min(...ext)) : -1;
   for (const o of others) {
     const ct = contactOf(n, o);
-    if (ct && longLen(ct) > bestLen) {
+    const len = ct ? longLen(ct) * (ct.n === thin ? 1.5 : 1) : 0;
+    if (ct && len > bestLen) {
       best = ct;
-      bestLen = longLen(ct);
+      bestLen = len;
     }
   }
   const size = Math.max(...n.part.size);
   const d = Math.min(520, Math.max(240, size * 0.45));
-  if (!best) return unrotate([0, d, 0], POSE_EULER[pose]).map((x) => Math.round(x)) as Vec3;
-  const k = best.n;
-  const away = mid(n.box, k) < mid(best.b.box, k) ? -1 : 1;
-  return unit(k, away * d);
+  const up = unrotate([0, d, 0], POSE_EULER[pose]).map((x) => Math.round(x)) as Vec3;
+  // away from the part it touches most, unless that path runs through another part (a shelf between two sides):
+  // then from the front (standing) or from above (lying down), or any side that is clear
+  const front: Vec3 = [0, 0, d];
+  const away = best ? unit(best.n, (mid(n.box, best.n) < mid(best.b.box, best.n) ? -1 : 1) * d) : up;
+  const down = (v: Vec3) => v[0] * up[0] + v[1] * up[1] + v[2] * up[2] < -d * d * 0.5;
+  // up through the floor only when nothing else is clear
+  const ways = [away, ...(pose === "+y" ? [front, up] : [up, front]), [d, 0, 0], [-d, 0, 0], [0, 0, -d], [0, -d, 0], [0, 0, d]] as Vec3[];
+  ways.sort((a, b) => Number(down(a)) - Number(down(b)));
+  return ways.find((v) => others.every((o) => o === n || !sweeps(n.box, v, o.box))) ?? away;
+}
+
+/**
+ * The box slid in from `v` away would pass through `o`. Touching faces do not count. A part the box already overlaps
+ * where it ends holds it in a groove: sliding along it or into it is fine, coming right through it is not.
+ */
+function sweeps(b: Box, v: Vec3, o: Box) {
+  const e = 0.5;
+  const hits = (d: Vec3) => [0, 1, 2].every((k) => b.min[k] + Math.min(0, d[k]) < o.max[k] - e && b.max[k] + Math.max(0, d[k]) > o.min[k] + e);
+  if (!hits([0, 0, 0])) return hits(v);
+  const ext = [0, 1, 2].map((k) => o.max[k] - o.min[k]);
+  const k = ext.indexOf(Math.min(...ext));
+  return v[k] !== 0 && b.min[k] + Math.min(0, v[k]) <= o.min[k] + e && b.max[k] + Math.max(0, v[k]) >= o.max[k] - e;
 }
 
 interface Fit extends FitOpts {
