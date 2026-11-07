@@ -779,6 +779,28 @@
   font-weight: 800;
   font-size: 18px !important;
 }
+.callout.sink {
+  align-items: center;
+  background: #fff;
+  box-shadow: inset 0 0 0 1px var(--line);
+}
+.callout.sink .sink-art {
+  flex: 0 0 auto;
+}
+.substeps {
+  margin: 10px 0 0;
+  padding-left: 22px;
+  color: var(--ink-2);
+  font-size: 15.5px;
+  line-height: 1.45;
+}
+.substeps li + li {
+  margin-top: 4px;
+}
+.substeps li::marker {
+  color: var(--ink);
+  font-weight: 700;
+}
 .callout.note {
   background: #fff;
   box-shadow: inset 0 0 0 1px var(--line);

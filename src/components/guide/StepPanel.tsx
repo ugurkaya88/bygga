@@ -40,7 +40,7 @@ export default function StepPanel({
   const tip = tipFor(plan, index);
   const isBig = (w: WarnId) => w === "two" || w === "tip" || w === "wall";
   const big = s.warnings.filter((w) => isBig(w) && !(w === "wall" && s.warnings.includes("tip")));
-  const small = s.warnings.filter((w) => !isBig(w));
+  const small = s.warnings.filter((w) => !isBig(w) && w !== "sink");
   const next = plan.steps[index + 1];
   const twoAhead = s.people === 1 ? plan.steps.slice(index + 1, index + 3).findIndex((x) => x.people === 2) : -1;
   const id = plan.spec.name + plan.spec.variant;
@@ -84,6 +84,13 @@ export default function StepPanel({
             </div>
             <h2 className="step-title">{s.title}</h2>
             {s.detail && <p className="sub">{s.detail}</p>}
+            {s.sub && s.sub.length > 0 && (
+              <ol className="substeps">
+                {s.sub.map((x, i) => (
+                  <li key={i}>{x}</li>
+                ))}
+              </ol>
+            )}
           </header>
 
           {s.repeat && s.repeat > 1 && (
@@ -104,6 +111,16 @@ export default function StepPanel({
               </div>
             </div>
           ))}
+
+          {s.warnings.includes("sink") && (
+            <div className="callout sink">
+              <SinkCheck />
+              <div>
+                <b>{t("warn.sinkTitle")}</b>
+                <span>{t("warn.sinkBody")}</span>
+              </div>
+            </div>
+          )}
 
           {hasNeeds && (
             <>
@@ -254,5 +271,23 @@ function KeysTip() {
         </motion.div>
       )}
     </AnimatePresence>
+  );
+}
+
+/** The manuals' check for which face goes out: a countersunk hole (right) beside a plain one (wrong). */
+function SinkCheck() {
+  const line = { stroke: "var(--ink)", strokeWidth: 1.6, strokeLinecap: "round", strokeLinejoin: "round" } as const;
+  return (
+    <svg viewBox="0 0 92 44" width={92} height={44} className="sink-art" aria-hidden="true">
+      <circle cx="20" cy="20" r="17" fill="#fff" {...line} />
+      <path d="M5 13L35 6" fill="none" {...line} />
+      <circle cx="20" cy="22" r="6.4" fill="var(--ink)" stroke="none" />
+      <circle cx="21" cy="21.5" r="2.6" fill="#fff" stroke="none" />
+      <path d="M27 36l4 4 9-12" fill="none" {...line} stroke="#1f9d55" strokeWidth={3} />
+      <circle cx="68" cy="20" r="17" fill="#fff" {...line} />
+      <path d="M53 13L83 6" fill="none" {...line} />
+      <circle cx="68" cy="22" r="2.8" fill="#fff" {...line} />
+      <path d="M77 30l9 10M86 30l-9 10" fill="none" {...line} stroke="#c0392b" strokeWidth={3} />
+    </svg>
   );
 }

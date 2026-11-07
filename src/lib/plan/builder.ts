@@ -3,6 +3,7 @@ import type {
   HwKind,
   HwType,
   Item,
+  Mark,
   PartItem,
   PartMaterial,
   PartPiece,
@@ -115,11 +116,15 @@ export interface StepDef {
   kind: StepKind;
   check?: "square";
   wall?: boolean;
+  shift?: Vec3;
+  marks?: Mark[];
+  sub?: string[];
   weight?: number;
 }
 
 export interface FitOpts {
   on?: string;
+  sink?: boolean; // goes in through a countersunk hole (a screw through one board into another)
   at: Vec3; // assembled frame (or scene frame when no parent)
   dir: Vec3;
   twist?: number;
@@ -239,6 +244,9 @@ export class PlanBuilder {
       kind: def.kind,
       check: def.check,
       wall: def.wall,
+      shift: def.shift,
+      marks: def.marks,
+      sub: def.sub?.length ? def.sub : undefined,
       minutes: def.weight ?? 0,
     };
     this.steps.push(s);
@@ -298,7 +306,8 @@ export class PlanBuilder {
       pos = toLocal(o.at, p.final.pos, p.final.rot);
       dir = unrotate(o.dir, p.final.rot);
       const r = o.hole === false ? 0 : (o.hole ?? holeR(def));
-      if (r > 0) p.holes.push({ p: pos, n: [-dir[0], -dir[1], -dir[2]], r });
+      // a screw through one board into another (FitOpts.sink) goes in through a countersunk hole
+      if (r > 0) p.holes.push({ p: pos, n: [-dir[0], -dir[1], -dir[2]], r, sink: o.sink || undefined });
     }
     if (o.mate) this.hole(o.mate, o.at, o.dir, o.mateHole ?? Math.max(holeR(def), 3));
     const travel = o.travel ?? defaultTravel(def);

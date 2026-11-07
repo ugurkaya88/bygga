@@ -125,6 +125,7 @@ export function stepLines(plan: Plan, i: number): string[] {
   const tools = toolsLine(plan, i);
   if (tools) out.push(tools);
   if (s.detail) out.push(sentence(s.detail));
+  for (const x of s.sub ?? []) out.push(sentence(x));
   if (s.warnings.includes("tip")) out.push(LINES.tip);
   const tip = tipFor(plan, i);
   if (tip) out.push(sentence(tip));

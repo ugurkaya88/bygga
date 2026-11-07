@@ -217,6 +217,18 @@ export interface CustomStep {
   check?: "square";
   wall?: boolean;
   view?: StepView; // the side the step is seen from; when left out, a step whose fittings mostly go in through the back of the upright product is seen from behind
+  shift?: Vec3; // where the whole build stands in this step, moved from its place (mm): pulled away from the wall to drill, say. It moves there from where the step before left it; fittings in the wall stay put
+  marks?: Mark[]; // pencil lines and drilled holes on the wall, drawn in this step and kept while the wall shows
+  sub?: string[]; // the manual's small numbered pictures within the step (peel the tape, stick it on, press it down), listed in order
+}
+
+/** A pencil line `len` mm long (along local x, turned by `twist` about `dir`), or a round mark `dot` mm across (a drilled hole), on the surface at `at` that `dir` points into (the wall by default). */
+export interface Mark {
+  at: Vec3;
+  dir?: Vec3;
+  len?: number;
+  dot?: number;
+  twist?: number;
 }
 
 export interface CustomParams {
@@ -353,6 +365,7 @@ export interface Hole {
   p: Vec3;
   n: Vec3;
   r: number;
+  sink?: boolean; // the face a screw goes in through: countersunk, drawn with a wide ring
 }
 
 /** A display state of a part: from `step` on it sits at pos/rot inside `scene`. The last state is the assembled one. */
@@ -416,6 +429,7 @@ export type WarnId =
   | "square"
   | "floor"
   | "face"
+  | "sink"
   | "tip";
 
 export type Pose = "+y" | "-y" | "+z" | "-z" | "+x" | "-x";
@@ -455,11 +469,14 @@ export interface Step {
   check?: "square";
   wall?: boolean;
   quiet?: boolean;
-  view?: StepView; // "back": the camera turns round to the back for this step
+  view?: StepView; // "back": the camera turns round to the back for this step; "below": it looks up from low in front
+  shift?: Vec3; // the whole build stands moved by this much (mm) in this step
+  marks?: Mark[];
+  sub?: string[]; // numbered actions within the step, in order
   minutes: number;
 }
 
-export type StepView = "front" | "back";
+export type StepView = "front" | "back" | "below";
 
 export interface ToolNeed {
   id: ToolId;

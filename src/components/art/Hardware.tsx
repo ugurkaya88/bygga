@@ -267,19 +267,27 @@ function draw(kind: HwKind, len: number, dia: number): Drawn {
     case "glide":
       return { w: 20, h: 10, scalable: true, node: <g><path d="M0 -1 V2 A10 3.6 0 0 0 20 2 V-1" fill={PLASTIC} {...stroke} /><ellipse cx={10} cy={-1} rx={10} ry={3.6} fill={PLASTIC} {...stroke} /></g> };
     case "glideStrip":
-      // a stick-on plastic strip seen from above, notched down both long edges
+      // a stick-on plastic glide seen from its open side: a rounded plate ringed by short ribs with gaps between them
       return {
         w: 60,
         h: 18,
         scalable: true,
         node: (
           <g>
-            <rect x={0} y={-9} width={60} height={18} rx={2.5} fill={PLASTIC} {...stroke} />
-            {[12, 30, 48].map((x) => (
-              <g key={x}>
-                <rect x={x - 2} y={-9} width={4} height={2.5} fill="#fff" {...fine} />
-                <rect x={x - 2} y={6.5} width={4} height={2.5} fill="#fff" {...fine} />
+            <rect x={0} y={-9} width={60} height={18} rx={3} fill={PLASTIC} {...stroke} />
+            {[
+              [3, 15],
+              [17, 26],
+              [34, 43],
+              [45, 57],
+            ].map(([a, b]) => (
+              <g key={a}>
+                <rect x={a} y={-7.4} width={b - a} height={2.6} fill="#fff" {...fine} />
+                <rect x={a} y={4.8} width={b - a} height={2.6} fill="#fff" {...fine} />
               </g>
+            ))}
+            {[3, 54.4].map((x) => (
+              <rect key={x} x={x} y={-3} width={2.6} height={6} fill="#fff" {...fine} />
             ))}
           </g>
         ),

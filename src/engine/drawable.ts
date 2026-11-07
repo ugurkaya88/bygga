@@ -127,17 +127,19 @@ export function partDrawable(p: PartType, holes: Hole[]) {
       a.set(Math.abs(n.y) < 0.9 ? 0 : 1, Math.abs(n.y) < 0.9 ? 1 : 0, 0).cross(n).normalize();
       b.copy(n).cross(a).normalize();
       c.set(...h.p).addScaledVector(n, 0.35);
-      for (let i = 0; i < seg; i++) {
-        const t0 = (i / seg) * Math.PI * 2, t1 = ((i + 1) / seg) * Math.PI * 2;
-        pts.push(
-          c.x + (a.x * Math.cos(t0) + b.x * Math.sin(t0)) * h.r,
-          c.y + (a.y * Math.cos(t0) + b.y * Math.sin(t0)) * h.r,
-          c.z + (a.z * Math.cos(t0) + b.z * Math.sin(t0)) * h.r,
-          c.x + (a.x * Math.cos(t1) + b.x * Math.sin(t1)) * h.r,
-          c.y + (a.y * Math.cos(t1) + b.y * Math.sin(t1)) * h.r,
-          c.z + (a.z * Math.cos(t1) + b.z * Math.sin(t1)) * h.r,
-        );
-      }
+      // a countersunk hole shows its wide mouth round the bore, as the manuals draw it
+      for (const r of h.sink ? [h.r, Math.max(4.6, h.r * 2.8)] : [h.r])
+        for (let i = 0; i < seg; i++) {
+          const t0 = (i / seg) * Math.PI * 2, t1 = ((i + 1) / seg) * Math.PI * 2;
+          pts.push(
+            c.x + (a.x * Math.cos(t0) + b.x * Math.sin(t0)) * r,
+            c.y + (a.y * Math.cos(t0) + b.y * Math.sin(t0)) * r,
+            c.z + (a.z * Math.cos(t0) + b.z * Math.sin(t0)) * r,
+            c.x + (a.x * Math.cos(t1) + b.x * Math.sin(t1)) * r,
+            c.y + (a.y * Math.cos(t1) + b.y * Math.sin(t1)) * r,
+            c.z + (a.z * Math.cos(t1) + b.z * Math.sin(t1)) * r,
+          );
+        }
     }
     const g = new LineSegmentsGeometry();
     g.setPositions(pts);
@@ -178,6 +180,8 @@ function roundedBox(w: number, h: number, dpt: number, r: number) {
 }
 
 /* ---------------- hardware ---------------- */
+
+const TAPE = new THREE.Color("#c4c3bd"); // a grey adhesive pad, as the manuals shade it
 
 const cyl = (r: number, h: number, seg = 18) => () => new THREE.CylinderGeometry(r, r, h, seg);
 
@@ -264,12 +268,25 @@ export function hwDrawable(kind: HwKind, len: number, dia: number) {
     case "glide":
       addSolid(d, "glide", cyl(10, 4, 18), plastic, { hull: "cyl", position: [0, 2, 0] });
       break;
-    case "glideStrip":
-      // a stick-on plastic strip, its long side along local z, with notches down both long edges
-      addSolid(d, `gs:${len}:${dia}`, () => new THREE.BoxGeometry(18, len, dia), plastic, { position: [0, len / 2, 0] });
-      for (const z of [-dia * 0.3, 0, dia * 0.3])
-        for (const x of [-8.2, 8.2]) addSolid(d, `gs:notch:${len}`, () => new THREE.BoxGeometry(1.8, len + 0.3, 4), FACE.hwMetal, { position: [x, len / 2, z], edges: false });
+    case "glideStrip": {
+      // a stick-on plastic glide, its long side along local z: the adhesive pad on the board, a thin plate, and a rim of
+      // short ribs with gaps between them round the open face (as the manuals draw it)
+      const tape = 0.6, plate = 1.5, rib = Math.max(1, len - tape - plate);
+      const half = dia / 2;
+      addSolid(d, `gs:tape:${dia}`, () => new THREE.BoxGeometry(17, tape, dia - 1), TAPE, { position: [0, tape / 2, 0], edges: false });
+      addSolid(d, `gs:plate:${dia}`, () => new THREE.BoxGeometry(18, plate, dia), plastic, { position: [0, tape + plate / 2, 0] });
+      const y = tape + plate + rib / 2;
+      const runs: [number, number][] = [
+        [-half + 1, -half * 0.52],
+        [-half * 0.46, -0.03 * dia],
+        [0.03 * dia, half * 0.46],
+        [half * 0.52, half - 1],
+      ];
+      for (const [a, b] of runs)
+        for (const x of [-7.6, 7.6]) addSolid(d, `gs:rib:${(b - a).toFixed(1)}:${rib}`, () => new THREE.BoxGeometry(2.4, rib, b - a), plastic, { position: [x, y, (a + b) / 2] });
+      for (const z of [-half + 2.2, half - 2.2]) addSolid(d, `gs:end:${rib}`, () => new THREE.BoxGeometry(6, rib, 2.4), plastic, { position: [0, y, z] });
       break;
+    }
     case "hingePlate":
       // a clip-on mounting plate seen from the front: screw wings across, the raised body the hinge arm clips onto along z
       addSolid(d, `hp:wing:${dia}`, () => new THREE.BoxGeometry(dia, 2, 12), metal, { position: [0, 1, 0] });
@@ -378,6 +395,16 @@ export function hwDrawable(kind: HwKind, len: number, dia: number) {
       break;
     }
   }
+  return d;
+}
+
+const GRAPHITE = new THREE.Color("#5b5850");
+
+/** A pencil line `len` mm long along local x, or a round mark `dot` mm across (a drilled hole), lying on the surface (local +y out). */
+export function markDrawable(len: number, dot: number) {
+  const d = new Drawable();
+  if (dot > 0) addSolid(d, `mark:dot:${dot}`, cyl(dot / 2, 0.8, 20), GRAPHITE, { position: [0, 0.4, 0], edges: false });
+  else addSolid(d, `mark:line:${len}`, () => new THREE.BoxGeometry(len, 0.8, 2), GRAPHITE, { position: [0, 0.4, 0], edges: false });
   return d;
 }
 

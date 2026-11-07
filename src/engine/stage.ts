@@ -1,7 +1,7 @@
 import * as THREE from "three";
 import type { HwItem, PartItem, PartState, PartType, Plan, Step, Vec3 } from "@/lib/types";
 import { POSE_EULER } from "@/lib/plan/math";
-import { Drawable, hwDrawable, partDrawable, wallDrawable } from "./drawable";
+import { Drawable, hwDrawable, markDrawable, partDrawable, wallDrawable } from "./drawable";
 import { INK, INK_OLD } from "./materials";
 import { t as tx } from "@/lib/i18n";
 
@@ -42,6 +42,9 @@ const CAM_TURN = 0.62;
 const EL_MAX = 1.5; // camera elevation limit either way (radians), short of straight up or down
 const HOLD = 2.4;
 const FADE = 0.35;
+const SHIFT_DUR = 1.3; // the whole build pulled away from the wall or pushed back
+const MARK_DUR = 0.7; // a pencil line drawn on
+const MARK_GAP = 0.4;
 
 interface PNode {
   item: PartItem;
@@ -61,6 +64,19 @@ interface HNode {
 interface Xf {
   p: THREE.Vector3;
   q: THREE.Quaternion;
+}
+/** A pencil line or drilled hole on the wall, drawn in step `step` (the `i`th there). */
+interface MNode {
+  step: number;
+  scene: string;
+  i: number;
+  len: number;
+  dot: boolean;
+  at: THREE.Vector3;
+  dir: THREE.Vector3;
+  d: Drawable;
+  holder: THREE.Group;
+  inner: THREE.Group;
 }
 
 const tmpV = new THREE.Vector3();
@@ -156,7 +172,14 @@ export class Stage {
   private frameLocal: THREE.Vector3[] = [];
   private stack = new Map<string, Xf>();
   private layout = new Map<string, Xf>();
-  private focus?: { local: THREE.Vector3; dir: THREE.Vector3; size: number; hw: HNode };
+  /** The close-up: what it looks at, when it comes in, and whether it shows a push in and a turn. */
+  private focus?: { local: THREE.Vector3; dir: THREE.Vector3; size: number; delay: number; turn?: number; spin?: number; still?: boolean };
+  private marks: MNode[] = [];
+  /** Where the whole build stands this step, moved from its place: from where the step before left it, to here. */
+  private shiftFrom = new THREE.Vector3();
+  private shiftTo = new THREE.Vector3();
+  private shiftNow = new THREE.Vector3();
+  private markStart = 0.3;
   /** How many fittings the step's corner box lists (it sits over the top left of the drawing). */
   private cornerItems = 0;
   margins?: { t: number; r: number; b: number; l: number };
@@ -322,6 +345,22 @@ export class Stage {
       d.meshes.forEach((m) => (m.userData.ref = it.ref));
       this.hws.push({ item: it, d, holder, inner, parent });
     }
+    plan.steps.forEach((s, si) =>
+      (s.marks ?? []).forEach((mk, i) => {
+        const len = mk.len ?? 120;
+        const d = markDrawable(len, mk.dot ?? 0);
+        const holder = new THREE.Group();
+        const inner = new THREE.Group();
+        holder.add(inner);
+        inner.add(d.root);
+        holder.position.set(...mk.at);
+        const dir = new THREE.Vector3(...(mk.dir ?? [0, 0, -1])).normalize();
+        holder.quaternion.setFromUnitVectors(new THREE.Vector3(0, -1, 0), dir);
+        if (mk.twist) holder.quaternion.premultiply(new THREE.Quaternion().setFromAxisAngle(dir, mk.twist));
+        this.root.add(holder);
+        this.marks.push({ step: si, scene: s.scene, i, len, dot: !!mk.dot, at: new THREE.Vector3(...mk.at), dir, d, holder, inner });
+      }),
+    );
     this.computeExtents();
     this.computeArrangements();
     this.finalXf.clear();
@@ -344,9 +383,11 @@ export class Stage {
       disposeDrawable(p.d);
     }
     for (const h of this.hws) disposeDrawable(h.d);
+    for (const mk of this.marks) disposeDrawable(mk.d);
     this.root.clear();
     this.parts = [];
     this.hws = [];
+    this.marks = [];
     this.byKey.clear();
     this.labels.forEach((l) => l.remove());
     this.labels.clear();
@@ -523,11 +564,22 @@ export class Stage {
     this.frameLocal = [];
     this.cornerItems = 0;
     this.stepXf.clear();
+    this.shiftFrom.set(0, 0, 0);
+    this.shiftTo.set(0, 0, 0);
+    this.shiftNow.set(0, 0, 0);
     const m = this.mode;
     if (m.kind === "step") {
       const s = m.index;
       const step = plan.steps[s];
       let end = 0;
+      // the build moves from where the step before left it (same scene and pose), then the step's work starts
+      const before = plan.steps[s - 1];
+      this.shiftTo.set(...(step.shift ?? [0, 0, 0]));
+      if (before && before.scene === step.scene && before.pose === step.pose) this.shiftFrom.set(...(before.shift ?? [0, 0, 0]));
+      else this.shiftFrom.copy(this.shiftTo);
+      const moving = this.shiftFrom.distanceTo(this.shiftTo) > 1;
+      if (moving) end = 0.25 + SHIFT_DUR;
+      this.markStart = moving ? 0.4 + SHIFT_DUR : 0.3;
       for (const p of this.parts) {
         const { st, prev } = this.stateAt(p, s);
         if (!st || st.scene !== step.scene) continue;
@@ -549,6 +601,13 @@ export class Stage {
         end = Math.max(end, h.item.delay + dur);
         if (h.item.travel > 0 && (!first || h.item.delay < first.item.delay)) first = h;
       }
+      const newMarks = this.marks.filter((mk) => mk.step === s);
+      if (newMarks.length) end = Math.max(end, this.markStart + (newMarks.length - 1) * MARK_GAP + MARK_DUR);
+      if (this.shiftTo.lengthSq() + this.shiftFrom.lengthSq() > 1) {
+        const here = this.frameLocal.slice();
+        for (const v of here) this.frameLocal.push(v.clone().add(this.shiftTo), v.clone().add(this.shiftFrom));
+        this.frameLocal.splice(0, here.length);
+      }
       this.stepEnd = Math.max(end, 0.6);
       this.cornerItems = Math.min(4, new Set(this.hws.filter((h) => h.item.step === s && !h.item.preset).map((h) => h.item.ref)).size);
       if (first && this.callout) {
@@ -558,14 +617,18 @@ export class Stage {
           const { st } = this.stateAt(first.parent, s);
           if (st) {
             const q = quatFromEuler(st.rot);
-            loc.applyQuaternion(q).add(new THREE.Vector3(...st.pos));
+            loc.applyQuaternion(q).add(new THREE.Vector3(...st.pos)).add(this.shiftTo);
             dir.applyQuaternion(q);
           }
         }
         const ht = plan.hardware.find((x) => x.id === first!.item.ref)!;
         const size =
           ht.kind === "runner" ? 55 : ht.kind === "hinge" || ht.kind === "hingePlate" || ht.kind === "cornerFoot" ? 55 : ht.kind === "bracket" ? 50 : ht.kind === "plate" ? 55 : ht.kind === "knob" || ht.kind === "handle" ? 50 : Math.max(17, Math.min(55, Math.max(ht.len, ht.dia * 2) * 0.72));
-        this.focus = { local: loc, dir, size, hw: first };
+        this.focus = { local: loc, dir, size, delay: first.item.delay, turn: first.item.turn, spin: first.item.spin };
+      } else if (newMarks.length && this.callout) {
+        // a step that only marks the wall shows its first mark close up, drawn on
+        const mk = newMarks[0];
+        this.focus = { local: mk.at.clone(), dir: mk.dir.clone(), size: mk.dot ? 34 : Math.min(55, Math.max(30, mk.len * 0.45)), delay: this.markStart, still: true };
       }
       // wall
       if (step.wall) this.ensureWall();
@@ -746,6 +809,7 @@ export class Stage {
     const fadeOut = loops && m.kind === "step" && t > this.stepEnd + HOLD ? 1 - clamp01((t - this.stepEnd - HOLD) / FADE) : 1;
     const hl = this.highlight;
 
+    if (m.kind === "step") this.shiftNow.lerpVectors(this.shiftFrom, this.shiftTo, easeInOut(clamp01((t - 0.25) / SHIFT_DUR)));
     const visibleParts = new Set<PNode>();
     for (const p of this.parts) {
       const node = p.node;
@@ -793,6 +857,7 @@ export class Stage {
           node.quaternion.copy(fin.q);
           this.styleDrawable(p.d, { opacity: 1, ink: hover || lit, tint: hover || lit ? 0.7 : 0, width: hover || lit ? 1.9 : 1.5 });
         }
+        node.position.add(this.shiftNow);
       } else if (m.kind === "intro") {
         node.visible = true;
         visibleParts.add(p);
@@ -881,6 +946,24 @@ export class Stage {
       this.wall.node.visible = this.wall.on > 0.02;
       this.styleDrawable(this.wall.d, { opacity: this.wall.on * 0.9, ink: false, tint: 0, width: 1.2 });
     }
+
+    // pencil lines and drilled holes on the wall: drawn on in their step, kept while the wall shows
+    for (const mk of this.marks) {
+      const wallOn = this.wall ? this.wall.on : 1;
+      const vis = m.kind === "step" && mk.step <= sIdx && mk.scene === scene && wallOn > 0.02;
+      mk.holder.visible = vis;
+      if (!vis) continue;
+      const isNew = mk.step === sIdx;
+      const k = isNew ? clamp01((t - this.markStart - mk.i * MARK_GAP) / MARK_DUR) : 1;
+      const e = Math.max(0.001, easeInOut(k));
+      if (mk.dot) mk.inner.scale.set(e, 1, e);
+      else {
+        // a line grows from its left end, as a pencil draws it
+        mk.inner.scale.set(e, 1, 1);
+        mk.inner.position.set((-mk.len / 2) * (1 - e), 0, 0);
+      }
+      this.styleDrawable(mk.d, { opacity: (isNew ? clamp01(k * 5) * fadeOut : 1) * Math.min(1, wallOn), ink: false, tint: 0, width: 1 });
+    }
   }
 
   /** Eases anything that was caught mid-move when the mode changed from where it was to where it now belongs. */
@@ -922,7 +1005,10 @@ export class Stage {
       el = 0.5;
     }
     // a step worked from behind turns the camera round to the back
-    if (this.mode.kind === "step" && this.plan?.steps[this.mode.index]?.view === "back") az += Math.PI;
+    const view = this.mode.kind === "step" ? this.plan?.steps[this.mode.index]?.view : undefined;
+    if (view === "back") az += Math.PI;
+    // work under a board high up (a wall bracket under the top): from low in front, looking up
+    if (view === "below") el = -0.75;
     return { az, el };
   }
 
@@ -1304,7 +1390,7 @@ export class Stage {
     const t = this.t;
     let target = 0;
     if (f) {
-      const k = (t - f.hw.item.delay + 0.5) / 0.4;
+      const k = (t - f.delay + 0.5) / 0.4;
       target = clamp01(k);
       if (t > this.stepEnd + HOLD) target = 1;
     }
@@ -1359,8 +1445,7 @@ export class Stage {
     const ns = "http://www.w3.org/2000/svg";
     const svg = co.svg;
     svg.setAttribute("viewBox", `0 0 ${s} ${s}`);
-    const it = f.hw.item;
-    const k = clamp01((t - it.delay) / HW_DUR);
+    const k = clamp01((t - f.delay) / HW_DUR);
     const proj = (v: THREE.Vector3) => {
       const p = v.clone().project(cam);
       return { x: ((p.x + 1) / 2) * s, y: ((1 - p.y) / 2) * s };
@@ -1368,13 +1453,13 @@ export class Stage {
     const a = proj(world.clone().addScaledVector(dirW, -half * 1.15));
     const b = proj(world.clone().addScaledVector(dirW, -half * 0.45));
     let html = "";
-    const op1 = k < 1 ? 1 : clamp01(1 - (t - it.delay - HW_DUR) * 2);
-    if (Math.hypot(b.x - a.x, b.y - a.y) > 18) html += `<path class="arrow" style="opacity:${op1}" d="${arrowPath(a, b, 0.9)}"/>`;
-    const turning = (it.turn ?? 0) > 0 || (it.spin ?? 0) > 0;
+    const op1 = k < 1 ? 1 : clamp01(1 - (t - f.delay - HW_DUR) * 2);
+    if (!f.still && Math.hypot(b.x - a.x, b.y - a.y) > 18) html += `<path class="arrow" style="opacity:${op1}" d="${arrowPath(a, b, 0.9)}"/>`;
+    const turning = (f.turn ?? 0) > 0 || (f.spin ?? 0) > 0;
     if (turning) {
       const c = proj(world);
-      const tk = it.turn ? clamp01((t - it.delay - HW_DUR) / CAM_TURN) : k;
-      const op2 = it.turn ? (tk > 0 ? 1 : 0) : 1;
+      const tk = f.turn ? clamp01((t - f.delay - HW_DUR) / CAM_TURN) : k;
+      const op2 = f.turn ? (tk > 0 ? 1 : 0) : 1;
       html += `<path class="arrow turn" style="opacity:${op2}" d="${arcArrow(c.x, c.y, Math.min(34, s * 0.2), -2.4 + tk * 0.4, 0.9 + tk * 0.4)}"/>`;
     }
     if (svg.innerHTML !== html) svg.innerHTML = html;

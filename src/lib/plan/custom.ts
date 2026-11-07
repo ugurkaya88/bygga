@@ -303,6 +303,8 @@ export function buildCustom(b: PlanBuilder, s: ProductSpec) {
   let lastAdded: Node[] = [];
   let stepHosts: Node[] = [];
   const used: Vec3[] = [];
+  // screws driven through one board into another, oldest first: caps with no place of their own go on these heads
+  const heads: Fit[] = [];
   const ctx: Ctx = { center, lo, hi };
   const isPlaced = (n: Node) => placed.includes(n);
   const steps = normalizeSteps(c.steps, c.parts);
@@ -336,11 +338,13 @@ export function buildCustom(b: PlanBuilder, s: ProductSpec) {
     }
     const warnings = new Set<WarnId>(st.warnings ?? []);
     const wall = st.wall ?? fixes.some((f) => f.kind === "bracket" || f.kind === "strap");
-    if (wall) {
+    // a step at the wall that fixes nothing (marking it, pulling the product away) shows the wall without the drilling warning
+    if (wall && fixes.length) {
       warnings.add("wall");
       tools.add("pencil");
       tools.add("screwdriver");
     }
+    if (st.marks?.length) tools.add("pencil");
     if ((st.people ?? 1) === 2) warnings.add("two");
 
     const made = b.step(
@@ -355,6 +359,9 @@ export function buildCustom(b: PlanBuilder, s: ProductSpec) {
         wall,
         repeat: st.repeat,
         check: st.check,
+        shift: st.shift,
+        marks: st.marks,
+        sub: st.sub?.filter((x) => typeof x === "string" && x.trim()).slice(0, 8),
         warnings: [...warnings].slice(0, 3),
       },
       () => {
@@ -384,7 +391,7 @@ export function buildCustom(b: PlanBuilder, s: ProductSpec) {
         const preGroups = pre.flatMap((f) => planFits(f, jointsFor(f), freshFor(f), placed, ctx, nodes));
 
         // a part that receives fittings before it is joined shows up now, so you can see where they go
-        const hosts = adds.length ? [] : [...new Set(preGroups.flatMap((g) => g.fits.map((x) => x.host)))].filter((n) => !isPlaced(n));
+        const hosts = adds.length ? [] : [...new Set(preGroups.flatMap((g) => g.fits.map((x) => x.host)))].filter((n): n is Node => !!n && !isPlaced(n));
         const arriving = [...hosts, ...adds];
         b.stagger(arriving.length > 3 ? 0.18 : 0.26);
         const inStep: Node[] = [];
@@ -417,7 +424,7 @@ export function buildCustom(b: PlanBuilder, s: ProductSpec) {
 
         b.stagger(0.05);
         if (preGroups.length) {
-          emit(b, preGroups, used);
+          emit(b, preGroups, used, heads);
           b.then(0.15);
         }
 
@@ -431,7 +438,8 @@ export function buildCustom(b: PlanBuilder, s: ProductSpec) {
 
         b.stagger(0.05);
         for (const f of post) {
-          emit(b, planFits(f, jointsFor(f), freshFor(f), [...placed, ...inStep], ctx, nodes), used);
+          const groups = f.kind === "cap" && !f.at?.length && !f.to?.length && heads.length ? capFits(f, heads) : planFits(f, jointsFor(f), freshFor(f), [...placed, ...inStep], ctx, nodes);
+          emit(b, groups, used, heads);
           b.then(0.1);
         }
         stepHosts = hosts.filter((n) => !waiting.includes(n) && !aside.has(n));
@@ -440,7 +448,7 @@ export function buildCustom(b: PlanBuilder, s: ProductSpec) {
     // work done from behind (a back nailed on to the standing product) is shown from behind
     const built = new Set([...placed, ...stepHosts, ...adds].map((n) => n.key));
     const view = st.view ?? (pose === "+y" && !st.scene && fromBehind(b, made.n, built) ? "back" : undefined);
-    if (view === "back") made.view = view;
+    if (view && view !== "front") made.view = view;
     placed.push(...stepHosts, ...adds);
     if (adds.length || stepHosts.length) lastAdded = [...stepHosts, ...adds];
     stepHosts = [];
@@ -510,7 +518,7 @@ function sweeps(b: Box, v: Vec3, o: Box) {
 }
 
 interface Fit extends FitOpts {
-  host: Node;
+  host?: Node; // none for a fitting in the wall
   slide?: number;
 }
 interface Group {
@@ -531,8 +539,10 @@ function planFits(f: CustomFix, contacts: Contact[], fresh: Node[], placed: Node
     const dir: Vec3 = f.dir ?? [0, -1, 0];
     const pool = [...fresh, ...placed];
     const fits: Fit[] = f.at.map((at) => {
-      const host = (f.on && nodes.get(f.on)) || nearest(pool.length ? pool : [...nodes.values()], at);
       const mate = f.mate ? nodes.get(f.mate) : undefined;
+      // going into the wall behind the build (a wall plug, the screw into it): it stays in the wall, whatever the build does
+      if (!f.on && dir[2] < -0.7 && at[2] <= ctx.lo[2] + 6) return { at, dir, mate: mate?.key, twist: f.twist };
+      const host = (f.on && nodes.get(f.on)) || nearest(pool.length ? pool : [...nodes.values()], at);
       return { on: host.key, host, at, dir, mate: mate?.key, twist: f.twist, hole: f.kind === "nail" || f.kind === "glide" || f.kind === "glideStrip" || f.kind === "cornerFoot" || f.kind === "clip" ? false : undefined };
     });
     return [{ def: defFor(f), fits, exact: true }];
@@ -700,10 +710,25 @@ function fromBehind(b: PlanBuilder, n: number, built: Set<string>) {
   return hw.length > 0 && hw.filter((i) => i.dir[2] > 0.7).length >= hw.length * 0.6;
 }
 
-function emit(b: PlanBuilder, groups: Group[], used: Vec3[]) {
+/** A screw driven through the board it sits in and on into another (a confirmat): it goes in through a countersunk hole, and a cap covers its head. */
+function through(def: HwDef, f: Fit) {
+  if (def.kind !== "screw" || def.notIncluded || !f.host) return false;
+  if (f.mate) return true;
+  const k = AXES.reduce((a, b) => (Math.abs(f.dir[b]) > Math.abs(f.dir[a]) ? b : a), 0);
+  return def.len > ext(f.host.box, k) + 2;
+}
+
+/** Caps over the heads of the screws already in, oldest first, each on its screw's face. */
+function capFits(f: CustomFix, heads: Fit[]): Group[] {
+  const take = heads.splice(0, Math.max(1, Math.round(f.count)));
+  return [{ def: defFor(f), fits: take.map((h) => ({ on: h.on, host: h.host, at: h.at, dir: h.dir, hole: false })), exact: true }];
+}
+
+function emit(b: PlanBuilder, groups: Group[], used: Vec3[], heads?: Fit[]) {
   const total = groups.reduce((s, g) => s + g.fits.length, 0);
   for (const g of groups) {
-    const list: FitOpts[] = g.fits.map(({ host: _host, slide, ...o }) => {
+    const list: FitOpts[] = g.fits.map((fit) => {
+      const { host: _host, slide, ...o } = fit;
       void _host;
       const at: Vec3 = [...o.at];
       const free = (p: Vec3) => used.every((u) => Math.hypot(u[0] - p[0], u[1] - p[1], u[2] - p[2]) > 22);
@@ -724,8 +749,9 @@ function emit(b: PlanBuilder, groups: Group[], used: Vec3[]) {
         }
       }
       used.push(at);
-      return { ...o, at };
+      return { ...o, at, sink: through(g.def, fit) || undefined };
     });
+    if (heads) list.forEach((o, i) => o.sink && heads.push({ ...o, host: g.fits[i].host }));
     b.fits(g.def, list, Math.min(0.07, 2.4 / Math.max(1, total)));
   }
 }
