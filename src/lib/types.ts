@@ -469,7 +469,7 @@ export interface Step {
   check?: "square";
   wall?: boolean;
   quiet?: boolean;
-  view?: StepView; // "back": the camera turns round to the back for this step; "below": it looks up from low in front
+  view?: StepView; // "back": the camera turns round to the back for this step; "below": square on from in front and a little low, so the underside of a high board shows
   shift?: Vec3; // the whole build stands moved by this much (mm) in this step
   marks?: Mark[];
   sub?: string[]; // numbered actions within the step, in order

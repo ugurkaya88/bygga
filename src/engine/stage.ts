@@ -45,6 +45,7 @@ const FADE = 0.35;
 const SHIFT_DUR = 1.3; // the whole build pulled away from the wall or pushed back
 const MARK_DUR = 0.7; // a pencil line drawn on
 const MARK_GAP = 0.4;
+const CAM_SMOOTH = 0.5; // seconds: how unhurried the view is when it moves to a new angle or framing
 
 interface PNode {
   item: PartItem;
@@ -82,6 +83,15 @@ interface MNode {
 const tmpV = new THREE.Vector3();
 const tmpQ = new THREE.Quaternion();
 const Y = new THREE.Vector3(0, 1, 0);
+
+/** One step of a critically damped glide toward `to` (as Unity's SmoothDamp): it sets off from still and
+ * settles without overshoot, where a plain lag jumps off at full speed. Returns the new value and speed. */
+function glide(from: number, to: number, v: number, dt: number): [number, number] {
+  const w = 2 / CAM_SMOOTH, x = w * dt;
+  const e = 1 / (1 + x + 0.48 * x * x + 0.235 * x * x * x);
+  const d = from - to, m = (v + w * d) * dt;
+  return [to + (d + m) * e, (v - w * m) * e];
+}
 
 function quatFromEuler(e: Vec3) {
   return new THREE.Quaternion().setFromEuler(new THREE.Euler(e[0], e[1], e[2], "XYZ"));
@@ -135,6 +145,14 @@ export class Stage {
   /** the view's own angles, gliding toward what the mode asks for, so a change of view never cuts */
   camAz = 0.62;
   camEl = 0.46;
+  /** how fast the view is moving, so it eases out of still and into place */
+  camAzV = 0;
+  camElV = 0;
+  camHalfV = 0;
+  camTargetV = new THREE.Vector3();
+  userAzV = 0;
+  userElV = 0;
+  userZoomV = 0;
   /** seconds the turntable has been turning, so it starts from still instead of wherever the clock was */
   turnT = 0;
   rootQ = new THREE.Quaternion();
@@ -507,6 +525,12 @@ export class Stage {
     if (!o.instant && this.rootReady) {
       const turn = poseBefore.angleTo(this.targetPoseQ());
       if (turn > 0.1) this.t = -Math.min(0.75, poseDur(turn) * 0.7);
+    }
+    // and while the view swings round to a new angle, before anything moves
+    if (!o.instant && this.camReady && mode.kind === "step") {
+      const want = this.camAngles();
+      const swing = Math.hypot(want.az - this.camAz, want.el - this.camEl);
+      if (swing > 0.3) this.t = Math.min(this.t, -Math.min(0.9, swing * 0.6));
     }
     this.loopCount = 0;
     this.autoReset = true;
@@ -1007,8 +1031,12 @@ export class Stage {
     // a step worked from behind turns the camera round to the back
     const view = this.mode.kind === "step" ? this.plan?.steps[this.mode.index]?.view : undefined;
     if (view === "back") az += Math.PI;
-    // work under a board high up (a wall bracket under the top): from low in front, looking up
-    if (view === "below") el = -0.75;
+    // work under a board high up (a line or a wall bracket under the top): square on from in front, a
+    // little low, so the board's underside just shows
+    if (view === "below") {
+      az = 0.04;
+      el = -0.08;
+    }
     return { az, el };
   }
 
@@ -1018,18 +1046,21 @@ export class Stage {
       if (!this.camReady || dt === 0) {
         this.camAz = want.az;
         this.camEl = want.el;
+        this.camAzV = this.camElV = 0;
       } else {
-        const g = 1 - Math.exp(-dt * 5);
-        this.camAz += (want.az - this.camAz) * g;
-        this.camEl += (want.el - this.camEl) * g;
+        [this.camAz, this.camAzV] = glide(this.camAz, want.az, this.camAzV, dt);
+        [this.camEl, this.camElV] = glide(this.camEl, want.el, this.camElV, dt);
       }
     }
-    if (this.autoReset && !this.dragging) {
-      const k = dt === 0 ? 1 : 1 - Math.exp(-dt * 4);
-      this.userAz += (0 - this.userAz) * k;
-      this.userEl += (0 - this.userEl) * k;
-      this.userZoom += (1 - this.userZoom) * k;
-    }
+    // a view the user turned or zoomed glides back the same way when the step changes
+    if (this.autoReset && !this.dragging && dt > 0) {
+      [this.userAz, this.userAzV] = glide(this.userAz, 0, this.userAzV, dt);
+      [this.userEl, this.userElV] = glide(this.userEl, 0, this.userElV, dt);
+      [this.userZoom, this.userZoomV] = glide(this.userZoom, 1, this.userZoomV, dt);
+    } else if (this.autoReset && !this.dragging) {
+      this.userAz = this.userEl = this.userAzV = this.userElV = this.userZoomV = 0;
+      this.userZoom = 1;
+    } else this.userAzV = this.userElV = this.userZoomV = 0;
     // the view can drop below the floor, to look at the underside
     const az = this.camAz + this.userAz, el = Math.max(-EL_MAX, Math.min(EL_MAX, this.camEl + this.userEl));
     const dir = new THREE.Vector3(Math.sin(az) * Math.cos(el), Math.sin(el), Math.cos(az) * Math.cos(el));
@@ -1121,11 +1152,12 @@ export class Stage {
     if (!this.camReady || dt === 0) {
       this.camTarget.copy(center);
       this.camHalf = halfH;
+      this.camTargetV.set(0, 0, 0);
+      this.camHalfV = 0;
       this.camReady = true;
     } else {
-      const k = 1 - Math.exp(-dt * 4.2);
-      this.camTarget.lerp(center, k);
-      this.camHalf += (halfH - this.camHalf) * k;
+      for (const c of ["x", "y", "z"] as const) [this.camTarget[c], this.camTargetV[c]] = glide(this.camTarget[c], center[c], this.camTargetV[c], dt);
+      [this.camHalf, this.camHalfV] = glide(this.camHalf, halfH, this.camHalfV, dt);
     }
     const cam = this.camera;
     cam.left = -this.camHalf * aspect;
