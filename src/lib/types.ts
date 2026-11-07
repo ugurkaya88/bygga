@@ -197,6 +197,7 @@ export interface CustomFix {
   // edge: with dir [0, 0, 1] that is world -x, so a door hung on its right edge takes twist pi. A cornerFoot's right
   // angle points to local -x -z from its centroid (world +x -z with dir [0, 1, 0]); twist pi/2 turns it to -x -z.
   twist?: number;
+  pad?: boolean; // a glideStrip whose adhesive pads come on their own sheet: shown getting its pad and the pad's backing peeled before it is pressed on
 }
 
 export interface CustomStep {
@@ -235,6 +236,14 @@ export interface CustomParams {
   parts: CustomPart[];
   steps: CustomStep[];
   fromCover?: boolean;
+  before?: BeforeNote[]; // what the manual's first pages ask the buyer to read before step 1, on a screen of its own before the tools
+}
+
+/** One note from the manual's pages before step 1: two people, a soft surface, check the parts, how its screws go in. */
+export interface BeforeNote {
+  title: string;
+  text?: string;
+  warn?: WarnId; // the drawing beside it ("sink": the countersunk check and a screw head sitting flush, as the manuals draw it)
 }
 
 export type TipKey =
@@ -405,6 +414,7 @@ export interface HwItem {
   delay: number;
   scale?: number;
   preset?: boolean;
+  pad?: boolean; // a stick-on glide got ready first: its pad stuck on and the backing peeled, then turned over and pressed on
 }
 
 export type Item = PartItem | HwItem;

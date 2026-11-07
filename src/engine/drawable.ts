@@ -182,6 +182,7 @@ function roundedBox(w: number, h: number, dpt: number, r: number) {
 /* ---------------- hardware ---------------- */
 
 const TAPE = new THREE.Color("#c4c3bd"); // a grey adhesive pad, as the manuals shade it
+const FILM = new THREE.Color("#f7f5ef"); // the paper backing on an adhesive pad
 
 const cyl = (r: number, h: number, seg = 18) => () => new THREE.CylinderGeometry(r, r, h, seg);
 
@@ -273,7 +274,19 @@ export function hwDrawable(kind: HwKind, len: number, dia: number) {
       // short ribs with gaps between them round the open face (as the manuals draw it)
       const tape = 0.6, plate = 1.5, rib = Math.max(1, len - tape - plate);
       const half = dia / 2;
-      addSolid(d, `gs:tape:${dia}`, () => new THREE.BoxGeometry(17, tape, dia - 1), TAPE, { position: [0, tape / 2, 0], edges: false });
+      // the pad and its paper backing in groups of their own, so the player can stick the pad on and peel the
+      // backing (stage.ts padPose); the backing hinges at the far end, its tab sticks out at the near one
+      const pad = new THREE.Group();
+      pad.name = "pad";
+      d.root.add(pad);
+      addSolid(d, `gs:tape:${dia}`, () => new THREE.BoxGeometry(17, tape, dia - 1), TAPE, { position: [0, tape / 2, 0], edges: false, parent: pad });
+      const film = new THREE.Group();
+      film.name = "film";
+      film.userData.z = -half - 0.5;
+      film.position.set(0, 0, film.userData.z);
+      film.visible = false;
+      pad.add(film);
+      addSolid(d, `gs:film:${dia}`, () => new THREE.BoxGeometry(17.4, 0.3, dia + 4.5), FILM, { position: [0, -0.15, (dia + 4.5) / 2], parent: film });
       addSolid(d, `gs:plate:${dia}`, () => new THREE.BoxGeometry(18, plate, dia), plastic, { position: [0, tape + plate / 2, 0] });
       const y = tape + plate + rib / 2;
       const runs: [number, number][] = [

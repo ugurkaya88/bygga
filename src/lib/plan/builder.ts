@@ -102,7 +102,7 @@ export function hwSpecText(kind: HwKind, len: number, dia: number) {
   }
 }
 
-const DUR = { part: 0.95, hw: 0.6, lift: 0.6 }; // lift: the extra for a part lifted over from where it waited (stage.ts LIFT)
+const DUR = { part: 0.95, hw: 0.6, lift: 0.6, pad: 3.6 }; // lift: the extra for a part lifted over from where it waited (stage.ts LIFT); pad: a glide got ready and pressed on (stage.ts PAD_DUR)
 
 export interface StepDef {
   title: string;
@@ -135,6 +135,7 @@ export interface FitOpts {
   hole?: number | false;
   mateHole?: number;
   scale?: number;
+  pad?: boolean; // a stick-on glide that gets its pad and has the backing peeled before it goes on (stage.ts PAD_DUR)
 }
 
 export class PlanBuilder {
@@ -311,7 +312,7 @@ export class PlanBuilder {
     }
     if (o.mate) this.hole(o.mate, o.at, o.dir, o.mateHole ?? Math.max(holeR(def), 3));
     const travel = o.travel ?? defaultTravel(def);
-    const extra = def.kind === "cam" ? 0.7 : o.spin ? 0.35 : 0;
+    const extra = def.kind === "cam" ? 0.7 : o.spin ? 0.35 : o.pad ? DUR.pad - DUR.hw : 0;
     const it: HwItem = {
       key,
       kind: "hw",
@@ -327,6 +328,7 @@ export class PlanBuilder {
       turn: o.turn ?? (def.kind === "cam" ? Math.PI * 0.75 : undefined),
       delay: this.slot(DUR.hw + extra),
       scale: o.scale,
+      pad: o.pad || undefined,
     };
     this.items.push(it);
     this.map.set(key, it);

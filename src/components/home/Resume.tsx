@@ -12,11 +12,11 @@ export default function Resume() {
   const mounted = useMounted();
   const p = useMemo(() => {
     if (!mounted) return null;
-    return listProgress().find((x) => x.phase === "steps" || x.phase === "parts" || x.phase === "tools") ?? null;
+    return listProgress().find((x) => x.phase === "steps" || x.phase === "parts" || x.phase === "tools" || x.phase === "before") ?? null;
   }, [mounted]);
   if (!p) return null;
   const pct = p.phase === "steps" ? p.step / Math.max(1, p.steps) : 0.04;
-  const where = p.phase === "steps" ? `step ${p.step + 1} of ${p.steps}` : p.phase === "parts" ? "checking parts" : "checking tools";
+  const where = p.phase === "steps" ? `step ${p.step + 1} of ${p.steps}` : p.phase === "parts" ? "checking parts" : p.phase === "before" ? "reading the notes" : "checking tools";
   const href = `/build/${p.slug}${p.spec ? `?q=${encodeURIComponent(p.spec.name)}` : ""}`;
   return (
     <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.4, ease: [0.22, 1, 0.36, 1] }}>

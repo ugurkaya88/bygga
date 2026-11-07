@@ -179,6 +179,17 @@ a:hover .arrow-out svg + svg {
   fill: var(--ink);
 }
 
+/* which of a step's numbered actions the circle is showing */
+.stage-callout-svg .phase circle {
+  fill: var(--ink);
+}
+
+.stage-callout-svg .phase text {
+  fill: #fff;
+  font: 700 15px/1 var(--font);
+  text-anchor: middle;
+}
+
 .stage-overlay .leader {
   stroke: var(--ink);
   stroke-width: 1.4px;

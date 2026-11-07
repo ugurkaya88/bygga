@@ -1,6 +1,6 @@
 import type { ProductSpec } from "./types";
 
-export type Phase = "cover" | "tools" | "parts" | "steps" | "done";
+export type Phase = "cover" | "before" | "tools" | "parts" | "steps" | "done";
 
 export interface Progress {
   slug: string;

@@ -72,6 +72,7 @@ const en = {
   "guide.mediaTitle": "Step {n} of {total}",
 
   "stepper.aria": "Progress",
+  "stepper.before": "Notes",
   "stepper.tools": "Tools",
   "stepper.parts": "Parts",
   "stepper.build": "Build",
@@ -194,6 +195,10 @@ const en = {
   "cover.start": "Start building",
 
   /* ---------- tools ---------- */
+  "before.eyebrow": "The manual's first pages",
+  "before.title": "Read this before you start",
+  "before.sub": "The maker wants you to know these before step 1.",
+  "before.go": "Got it, go on",
   "tools.eyebrow": "Before you start",
   "tools.title": "Grab your tools",
   "tools.sub": "Missing one? Tap it for a workaround.",

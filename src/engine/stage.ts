@@ -46,6 +46,11 @@ const SHIFT_DUR = 1.3; // the whole build pulled away from the wall or pushed ba
 const MARK_DUR = 0.7; // a pencil line drawn on
 const MARK_GAP = 0.4;
 const CAM_SMOOTH = 0.5; // seconds: how unhurried the view is when it moves to a new angle or framing
+// a stick-on glide got ready before it goes on (HwItem.pad): held turned over PAD_HOVER mm out, its pad comes PAD_REACH
+// mm onto it, the pad's backing is peeled, then it turns back and is pressed on. Times in seconds from its delay.
+const PAD = { reach: 0.45, peel: 1.45, off: 2.05, gone: 2.45, flip: 2.55, press: 2.95, dur: 3.6 }; // builder.ts DUR.pad
+const PAD_HOVER = 55;
+const PAD_REACH = 45;
 
 interface PNode {
   item: PartItem;
@@ -83,6 +88,7 @@ interface MNode {
 const tmpV = new THREE.Vector3();
 const tmpQ = new THREE.Quaternion();
 const Y = new THREE.Vector3(0, 1, 0);
+const Z = new THREE.Vector3(0, 0, 1);
 
 /** One step of a critically damped glide toward `to` (as Unity's SmoothDamp): it sets off from still and
  * settles without overshoot, where a plain lag jumps off at full speed. Returns the new value and speed. */
@@ -191,7 +197,7 @@ export class Stage {
   private stack = new Map<string, Xf>();
   private layout = new Map<string, Xf>();
   /** The close-up: what it looks at, when it comes in, and whether it shows a push in and a turn. */
-  private focus?: { local: THREE.Vector3; dir: THREE.Vector3; size: number; delay: number; turn?: number; spin?: number; still?: boolean };
+  private focus?: { local: THREE.Vector3; dir: THREE.Vector3; size: number; delay: number; turn?: number; spin?: number; still?: boolean; pad?: boolean };
   private marks: MNode[] = [];
   /** Where the whole build stands this step, moved from its place: from where the step before left it, to here. */
   private shiftFrom = new THREE.Vector3();
@@ -200,6 +206,8 @@ export class Stage {
   private markStart = 0.3;
   /** How many fittings the step's corner box lists (it sits over the top left of the drawing). */
   private cornerItems = 0;
+  /** the step shows the manual's countersunk check under the fittings box (GuideApp .sink-box) */
+  private sinkBox = false;
   margins?: { t: number; r: number; b: number; l: number };
 
   constructor(el: HTMLElement, opts: StageOptions = {}) {
@@ -587,6 +595,7 @@ export class Stage {
     this.focus = undefined;
     this.frameLocal = [];
     this.cornerItems = 0;
+    this.sinkBox = false;
     this.stepXf.clear();
     this.shiftFrom.set(0, 0, 0);
     this.shiftTo.set(0, 0, 0);
@@ -621,7 +630,7 @@ export class Stage {
       let first: HNode | undefined;
       for (const h of this.hws) {
         if (h.item.step !== s) continue;
-        const dur = HW_DUR + (h.item.turn ? CAM_TURN : 0);
+        const dur = h.item.pad ? PAD.dur : HW_DUR + (h.item.turn ? CAM_TURN : 0);
         end = Math.max(end, h.item.delay + dur);
         if (h.item.travel > 0 && (!first || h.item.delay < first.item.delay)) first = h;
       }
@@ -634,6 +643,7 @@ export class Stage {
       }
       this.stepEnd = Math.max(end, 0.6);
       this.cornerItems = Math.min(4, new Set(this.hws.filter((h) => h.item.step === s && !h.item.preset).map((h) => h.item.ref)).size);
+      this.sinkBox = step.warnings.includes("sink");
       if (first && this.callout) {
         const loc = new THREE.Vector3(...first.item.pos);
         const dir = new THREE.Vector3(...first.item.dir).normalize();
@@ -648,7 +658,10 @@ export class Stage {
         const ht = plan.hardware.find((x) => x.id === first!.item.ref)!;
         const size =
           ht.kind === "runner" ? 55 : ht.kind === "hinge" || ht.kind === "hingePlate" || ht.kind === "cornerFoot" ? 55 : ht.kind === "bracket" ? 50 : ht.kind === "plate" ? 55 : ht.kind === "knob" || ht.kind === "handle" ? 50 : Math.max(17, Math.min(55, Math.max(ht.len, ht.dia * 2) * 0.72));
-        this.focus = { local: loc, dir, size, delay: first.item.delay, turn: first.item.turn, spin: first.item.spin };
+        // a glide got ready in front of its place: the circle looks halfway out, wide enough for both
+        const pad = !!first.item.pad;
+        if (pad) loc.addScaledVector(dir, -PAD_HOVER / 2);
+        this.focus = { local: loc, dir, size: pad ? 62 : size, delay: first.item.delay, turn: first.item.turn, spin: first.item.spin, pad: pad || undefined };
       } else if (newMarks.length && this.callout) {
         // a step that only marks the wall shows its first mark close up, drawn on
         const mk = newMarks[0];
@@ -944,7 +957,10 @@ export class Stage {
       h.holder.visible = vis;
       if (!vis) continue;
       const isNew = m.kind === "step" && it.step === sIdx;
-      if (isNew && it.travel > 0) {
+      if (isNew && it.pad) {
+        this.padPose(h, t - it.delay);
+        this.styleDrawable(h.d, { opacity: clamp01((t - it.delay) / 0.15) * fadeOut, ink: true, tint: 0, width: 1.6 });
+      } else if (isNew && it.travel > 0) {
         const k = clamp01((t - it.delay) / HW_DUR);
         const e = easeInOut(k);
         h.inner.position.set(0, it.travel * (1 - e), 0);
@@ -957,6 +973,7 @@ export class Stage {
       } else {
         h.inner.position.set(0, 0, 0);
         h.inner.quaternion.setFromAxisAngle(Y, -((it.spin ?? 0) * Math.PI * 2 + (it.turn ?? 0)));
+        if (it.pad) this.padPose(h, PAD.dur);
         const op = m.kind === "intro" ? clamp01((t - this.stepEnd + 0.7) / 0.5) : 1;
         const lit = this.highlight?.has(it.ref) ?? false;
         this.styleDrawable(h.d, { opacity: op, ink: isNew || lit || m.kind !== "step", tint: lit ? 0.8 : 0, width: lit ? 1.7 : 1.25 });
@@ -987,6 +1004,24 @@ export class Stage {
         mk.inner.position.set((-mk.len / 2) * (1 - e), 0, 0);
       }
       this.styleDrawable(mk.d, { opacity: (isNew ? clamp01(k * 5) * fadeOut : 1) * Math.min(1, wallOn), ink: false, tint: 0, width: 1 });
+    }
+  }
+
+  /** A stick-on glide got ready in front of its place, `u` seconds after it started (PAD): held turned over, flat face
+   * out, the pad comes onto that face, the pad's backing is peeled off and away, then it turns back and is pressed on. */
+  private padPose(h: HNode, u: number) {
+    const flip = 1 - easeInOut(clamp01((u - PAD.flip) / 0.6));
+    const press = easeInOut(clamp01((u - PAD.press) / (PAD.dur - PAD.press)));
+    h.inner.position.set(0, PAD_HOVER * (1 - press), 0);
+    h.inner.quaternion.setFromAxisAngle(Z, Math.PI * flip);
+    // turned over, the glide's own -Y faces out: the pad and its backing come from there and leave that way
+    const pad = h.d.root.getObjectByName("pad");
+    if (pad) pad.position.set(0, -PAD_REACH * (1 - easeInOut(clamp01((u - PAD.reach) / 0.8))), 0);
+    const film = h.d.root.getObjectByName("film");
+    if (film) {
+      film.visible = u < PAD.gone;
+      film.rotation.set(2.6 * easeInOut(clamp01((u - PAD.peel) / 0.8)), 0, 0);
+      film.position.set(0, -50 * easeInOut(clamp01((u - PAD.off) / (PAD.gone - PAD.off))), film.userData.z ?? 0);
     }
   }
 
@@ -1116,8 +1151,16 @@ export class Stage {
     };
     // the fittings box covers the top left: keep the drawing either below it or to its right
     const starts: [number, number][] = [[mL, mT]];
-    if (k === "step" && this.cornerItems) {
-      const boxH = (mob ? 128 : 200) + m.t, boxW = (mob ? 34 + this.cornerItems * 48 : 46 + this.cornerItems * 62) + m.l;
+    if (k === "step" && (this.cornerItems || this.sinkBox)) {
+      // the step number alone is inside the top margin; the countersunk check sits under the fittings box
+      let boxH = this.cornerItems ? (mob ? 128 : 200) : mob ? 62 : 116;
+      let boxW = this.cornerItems ? (mob ? 34 + this.cornerItems * 48 : 46 + this.cornerItems * 62) : 0;
+      if (this.sinkBox) {
+        boxH += mob ? 72 : 96;
+        boxW = Math.max(boxW, mob ? 134 : 182);
+      }
+      boxH += m.t;
+      boxW += m.l;
       starts.splice(0, 1, [mL, Math.max(mT, boxH)], [Math.max(mL, boxW), mT]);
     }
     let best = fit(mL, mT, mR, mB);
@@ -1477,7 +1520,9 @@ export class Stage {
     const ns = "http://www.w3.org/2000/svg";
     const svg = co.svg;
     svg.setAttribute("viewBox", `0 0 ${s} ${s}`);
-    const k = clamp01((t - f.delay) / HW_DUR);
+    // a glide got ready first goes on at the end: its arrow waits till then
+    const a0 = f.delay + (f.pad ? PAD.press : 0);
+    const k = clamp01((t - a0) / HW_DUR);
     const proj = (v: THREE.Vector3) => {
       const p = v.clone().project(cam);
       return { x: ((p.x + 1) / 2) * s, y: ((1 - p.y) / 2) * s };
@@ -1485,7 +1530,7 @@ export class Stage {
     const a = proj(world.clone().addScaledVector(dirW, -half * 1.15));
     const b = proj(world.clone().addScaledVector(dirW, -half * 0.45));
     let html = "";
-    const op1 = k < 1 ? 1 : clamp01(1 - (t - f.delay - HW_DUR) * 2);
+    const op1 = t < a0 - 0.25 ? 0 : k < 1 ? 1 : clamp01(1 - (t - a0 - HW_DUR) * 2);
     if (!f.still && Math.hypot(b.x - a.x, b.y - a.y) > 18) html += `<path class="arrow" style="opacity:${op1}" d="${arrowPath(a, b, 0.9)}"/>`;
     const turning = (f.turn ?? 0) > 0 || (f.spin ?? 0) > 0;
     if (turning) {
@@ -1493,6 +1538,14 @@ export class Stage {
       const tk = f.turn ? clamp01((t - f.delay - HW_DUR) / CAM_TURN) : k;
       const op2 = f.turn ? (tk > 0 ? 1 : 0) : 1;
       html += `<path class="arrow turn" style="opacity:${op2}" d="${arcArrow(c.x, c.y, Math.min(34, s * 0.2), -2.4 + tk * 0.4, 0.9 + tk * 0.4)}"/>`;
+    }
+    // the step's four numbered actions (sub) as the glide is got ready: which one the circle is showing
+    const sub = this.mode.kind === "step" ? this.plan?.steps[this.mode.index]?.sub : undefined;
+    if (f.pad && sub?.length === 4 && t >= f.delay) {
+      const u = t - f.delay;
+      const n = u < PAD.reach ? 1 : u < PAD.peel - 0.1 ? 2 : u < PAD.flip - 0.1 ? 3 : 4;
+      const r = Math.max(13, s * 0.065);
+      html += `<g class="phase" transform="translate(${s * 0.24} ${s * 0.2})"><circle r="${r}"/><text dy="0.35em">${n}</text></g>`;
     }
     if (svg.innerHTML !== html) svg.innerHTML = html;
     void ns;

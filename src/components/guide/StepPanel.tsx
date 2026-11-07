@@ -9,6 +9,7 @@ import { ToolArt, TOOL_INFO } from "../art/Tools";
 import { IArrowLeft, IArrowRight, ICheck, IClock, IClose, IMic, ISparkle, WarnIcon, WARN_TEXT } from "../art/Icons";
 import { num, t } from "@/lib/i18n";
 import { TwoPeople } from "../art/Figure";
+import { SinkCheck } from "../art/SinkCheck";
 import Thumb from "../Thumb";
 import { getPref, setPref } from "@/lib/store";
 
@@ -114,7 +115,7 @@ export default function StepPanel({
 
           {s.warnings.includes("sink") && (
             <div className="callout sink">
-              <SinkCheck />
+              <SinkCheck className="sink-art" />
               <div>
                 <b>{t("warn.sinkTitle")}</b>
                 <span>{t("warn.sinkBody")}</span>
@@ -275,19 +276,3 @@ function KeysTip() {
 }
 
 /** The manuals' check for which face goes out: a countersunk hole (right) beside a plain one (wrong). */
-function SinkCheck() {
-  const line = { stroke: "var(--ink)", strokeWidth: 1.6, strokeLinecap: "round", strokeLinejoin: "round" } as const;
-  return (
-    <svg viewBox="0 0 92 44" width={92} height={44} className="sink-art" aria-hidden="true">
-      <circle cx="20" cy="20" r="17" fill="#fff" {...line} />
-      <path d="M5 13L35 6" fill="none" {...line} />
-      <circle cx="20" cy="22" r="6.4" fill="var(--ink)" stroke="none" />
-      <circle cx="21" cy="21.5" r="2.6" fill="#fff" stroke="none" />
-      <path d="M27 36l4 4 9-12" fill="none" {...line} stroke="#1f9d55" strokeWidth={3} />
-      <circle cx="68" cy="20" r="17" fill="#fff" {...line} />
-      <path d="M53 13L83 6" fill="none" {...line} />
-      <circle cx="68" cy="22" r="2.8" fill="#fff" {...line} />
-      <path d="M77 30l9 10M86 30l-9 10" fill="none" {...line} stroke="#c0392b" strokeWidth={3} />
-    </svg>
-  );
-}

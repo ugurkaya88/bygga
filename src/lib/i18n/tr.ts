@@ -74,6 +74,7 @@ const tr: Record<keyof typeof en, string> = {
   "guide.mediaTitle": "Adım {n}/{total}",
 
   "stepper.aria": "İlerleme",
+  "stepper.before": "Uyarılar",
   "stepper.tools": "Aletler",
   "stepper.parts": "Parçalar",
   "stepper.build": "Kurulum",
@@ -196,6 +197,10 @@ const tr: Record<keyof typeof en, string> = {
   "cover.start": "Kuruluma başla",
 
   /* ---------- tools ---------- */
+  "before.eyebrow": "Kılavuzun ilk sayfaları",
+  "before.title": "Kuruluma geçmeden önce oku",
+  "before.sub": "Üretici bunları ilk adımdan önce bilmeni istiyor.",
+  "before.go": "Okudum, devam",
   "tools.eyebrow": "Başlamadan önce",
   "tools.title": "Aletlerini hazırla",
   "tools.sub": "Eksik olan var mı? Dokun, alternatifini gör.",

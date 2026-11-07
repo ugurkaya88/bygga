@@ -388,7 +388,7 @@ export function buildCustom(b: PlanBuilder, s: ProductSpec) {
 
         const pre = fixes.filter((f) => PRE.includes(f.kind));
         const post = fixes.filter((f) => !PRE.includes(f.kind));
-        const preGroups = pre.flatMap((f) => planFits(f, jointsFor(f), freshFor(f), placed, ctx, nodes));
+        const preGroups = pre.flatMap((f) => padded(f, planFits(f, jointsFor(f), freshFor(f), placed, ctx, nodes)));
 
         // a part that receives fittings before it is joined shows up now, so you can see where they go
         const hosts = adds.length ? [] : [...new Set(preGroups.flatMap((g) => g.fits.map((x) => x.host)))].filter((n): n is Node => !!n && !isPlaced(n));
@@ -438,7 +438,7 @@ export function buildCustom(b: PlanBuilder, s: ProductSpec) {
 
         b.stagger(0.05);
         for (const f of post) {
-          const groups = f.kind === "cap" && !f.at?.length && !f.to?.length && heads.length ? capFits(f, heads) : planFits(f, jointsFor(f), freshFor(f), [...placed, ...inStep], ctx, nodes);
+          const groups = f.kind === "cap" && !f.at?.length && !f.to?.length && heads.length ? capFits(f, heads) : padded(f, planFits(f, jointsFor(f), freshFor(f), [...placed, ...inStep], ctx, nodes));
           emit(b, groups, used, heads);
           b.then(0.1);
         }
@@ -525,6 +525,12 @@ interface Group {
   def: HwDef;
   fits: Fit[];
   exact?: boolean; // placed by hand with `at`: emitted where the recipe says, never nudged
+  pad?: boolean; // stick-on glides shown getting their pads first (CustomFix.pad)
+}
+
+/** Marks the groups of a stick-on glide fix whose pads come apart, so the player shows them going on. */
+function padded(f: CustomFix, groups: Group[]): Group[] {
+  return f.pad && f.kind === "glideStrip" ? groups.map((g) => ({ ...g, pad: true })) : groups;
 }
 interface Ctx {
   center: Vec3;
@@ -749,7 +755,7 @@ function emit(b: PlanBuilder, groups: Group[], used: Vec3[], heads?: Fit[]) {
         }
       }
       used.push(at);
-      return { ...o, at, sink: through(g.def, fit) || undefined };
+      return { ...o, at, sink: through(g.def, fit) || undefined, pad: g.pad };
     });
     if (heads) list.forEach((o, i) => o.sink && heads.push({ ...o, host: g.fits[i].host }));
     b.fits(g.def, list, Math.min(0.07, 2.4 / Math.max(1, total)));

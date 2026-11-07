@@ -15,10 +15,12 @@ import StageView, { type StageHandle } from "../StageView";
 import type { StageMode } from "@/engine/stage";
 import { LogoMark } from "../Logo";
 import { HwArt } from "../art/Hardware";
+import { SinkCheck } from "../art/SinkCheck";
 import { Figure } from "../art/Figure";
 import { ICheck, IGrid, IHelp, IMic, IPause, IPlay, IReplay, IRotate, IScan, ISound, ISoundOff, ISparkle } from "../art/Icons";
 import CoverPanel from "./CoverPanel";
 import ToolsPanel from "./ToolsPanel";
+import BeforePanel from "./BeforePanel";
 import PartsPanel from "./PartsPanel";
 import StepPanel from "./StepPanel";
 import DonePanel, { Confetti } from "./DonePanel";
@@ -348,6 +350,9 @@ function NotFound({
 
 function Guide({ plan, slug, via, ai, startStep, onOwnSteps }: { plan: Plan; slug: string; via: Via; ai: boolean; startStep?: number; onOwnSteps?: { text: string; act: () => void } }) {
   const steps = plan.steps;
+  // the manual's notes before step 1 get a screen of their own, between the cover and the tools
+  const notes = useMemo(() => plan.spec.custom?.before?.filter((n) => n.title) ?? [], [plan.spec]);
+  const first: Phase = notes.length ? "before" : "tools";
   const deep = startStep ? Math.min(startStep, steps.length) - 1 : null;
   const [phase, setPhase] = useState<Phase>(deep !== null ? "steps" : "cover");
   const [step, setStep] = useState(deep ?? 0);
@@ -358,7 +363,7 @@ function Guide({ plan, slug, via, ai, startStep, onOwnSteps }: { plan: Plan; slu
   const [doneAt, setDoneAt] = useState<number | undefined>();
   const [resume, setResume] = useState<Progress | null>(null);
   const [maxStep, setMaxStep] = useState(0);
-  const [reached, setReached] = useState(deep !== null ? 3 : 0);
+  const [reached, setReached] = useState(deep !== null ? PHASES.indexOf("steps") : 0);
   const [help, setHelp] = useState<null | { missing?: boolean; ask?: string; at?: number }>(null);
   const [overview, setOverview] = useState(false);
   const [voiceOn, setVoiceOn] = useState(false);
@@ -405,7 +410,7 @@ function Guide({ plan, slug, via, ai, startStep, onOwnSteps }: { plan: Plan; slu
       setMissing(new Set(p.missing ?? []));
       setStartedAt(p.startedAt);
       setMaxStep(Math.min(p.step, steps.length - 1));
-      setReached(Math.max(deep !== null ? 3 : 0, PHASES.indexOf(p.phase)));
+      setReached(Math.max(deep !== null ? PHASES.indexOf("steps") : 0, PHASES.indexOf(p.phase)));
       setSeen((x) => [...new Set([...(p.seen ?? []), ...x])]);
       if (p.doneAt) setDoneAt(p.doneAt);
       if (isBuilt(p)) setBuilt({ at: p.builtAt ?? p.doneAt ?? p.updatedAt, ms: p.builtMs, full: p.builtFull });
@@ -477,8 +482,9 @@ function Guide({ plan, slug, via, ai, startStep, onOwnSteps }: { plan: Plan; slu
     haptic(12);
     if (phase === "cover") {
       setStartedAt((x) => x ?? Date.now());
-      go("tools");
-    } else if (phase === "tools") go("parts");
+      go(first);
+    } else if (phase === "before") go("tools");
+    else if (phase === "tools") go("parts");
     else if (phase === "parts") go("steps", 0);
     else if (phase === "steps") {
       setStamp((x) => x + 1);
@@ -500,16 +506,17 @@ function Guide({ plan, slug, via, ai, startStep, onOwnSteps }: { plan: Plan; slu
         setBuilt((b) => (!b ? { at: Date.now(), ms, full } : full && (!b.full || !b.ms || ms < b.ms) ? { ...b, ms, full } : b));
       }
     }
-  }, [phase, step, steps.length, go, showToast, seen, plan.spec.name, slug]);
+  }, [phase, step, steps.length, go, showToast, seen, plan.spec.name, slug, first]);
 
   const back = useCallback(() => {
-    if (phase === "tools") go("cover", undefined, -1);
+    if (phase === "before") go("cover", undefined, -1);
+    else if (phase === "tools") go(first === "before" ? "before" : "cover", undefined, -1);
     else if (phase === "parts") go("tools", undefined, -1);
     else if (phase === "steps") {
       if (step > 0) go("steps", step - 1, -1);
       else go("parts", undefined, -1);
     } else if (phase === "done") go("steps", steps.length - 1, -1);
-  }, [phase, step, steps.length, go]);
+  }, [phase, step, steps.length, go, first]);
 
   // keyboard
   useEffect(() => {
@@ -766,7 +773,7 @@ function Guide({ plan, slug, via, ai, startStep, onOwnSteps }: { plan: Plan; slu
 
   const mode: StageMode = useMemo(() => {
     if (phase === "cover") return introPlayed || resume ? { kind: "assembled", turntable: true, dims: true } : { kind: "intro", dims: true };
-    if (phase === "tools" || phase === "done") return { kind: "assembled", turntable: true };
+    if (phase === "before" || phase === "tools" || phase === "done") return { kind: "assembled", turntable: true };
     if (phase === "parts") return { kind: "layout" };
     return { kind: "step", index: step };
   }, [phase, step, introPlayed, resume]);
@@ -790,7 +797,7 @@ function Guide({ plan, slug, via, ai, startStep, onOwnSteps }: { plan: Plan; slu
           <b>{plan.spec.name}</b>
           <span>{plan.spec.variant}</span>
         </div>
-        <Stepper phase={phase} step={step} total={steps.length} reached={reached} onJump={jump} />
+        <Stepper phase={phase} step={step} total={steps.length} reached={reached} onJump={jump} notes={notes.length > 0} />
         <div className="tb-actions">
           {phase === "steps" && (
             <button className="icon-btn" onClick={() => setOverview(true)} aria-label={t("guide.allSteps")} data-tip={t("guide.allSteps")}>
@@ -862,6 +869,11 @@ function Guide({ plan, slug, via, ai, startStep, onOwnSteps }: { plan: Plan; slu
                       <b>{count}&times;</b>
                     </span>
                   ))}
+                </motion.div>
+              )}
+              {cur.warnings.includes("sink") && (
+                <motion.div key={"sink" + step} className="sink-box" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.25, duration: 0.35 }}>
+                  <SinkCheck width={150} />
                 </motion.div>
               )}
             </div>
@@ -991,17 +1003,18 @@ function Guide({ plan, slug, via, ai, startStep, onOwnSteps }: { plan: Plan; slu
                     setSeen([]);
                     setFinish(null);
                     clock.current = { at: Date.now(), ms: 0, live: true };
-                    go("tools");
+                    go(first);
                   }}
                   onReview={() => go("steps", 0)}
                   onOwnSteps={onOwnSteps}
                   onResume={() => {
                     if (!resume) return;
                     if (resume.phase === "steps") go("steps", Math.min(resume.step, steps.length - 1));
-                    else go(resume.phase === "cover" ? "tools" : resume.phase);
+                    else go(resume.phase === "cover" || (resume.phase === "before" && first !== "before") ? first : resume.phase);
                   }}
                 />
               )}
+              {phase === "before" && <BeforePanel notes={notes} onNext={next} onBack={back} />}
               {phase === "tools" && (
                 <ToolsPanel
                   plan={plan}
@@ -1112,7 +1125,7 @@ function Guide({ plan, slug, via, ai, startStep, onOwnSteps }: { plan: Plan; slu
   );
 }
 
-const PHASES: Phase[] = ["cover", "tools", "parts", "steps", "done"];
+const PHASES: Phase[] = ["cover", "before", "tools", "parts", "steps", "done"];
 
 /** "Just read it aloud" holds for the rest of the visit, so turning the voice on again doesn't ask again. */
 const SKIP = "bygga:key-skip";
@@ -1139,8 +1152,9 @@ function toggle(s: Set<string>, id: string) {
 }
 
 /** Where you are: Tools, Parts, Build, Done. Earlier phases can be revisited. */
-function Stepper({ phase, step, total, reached, onJump }: { phase: Phase; step: number; total: number; reached: number; onJump: (p: Phase) => void }) {
+function Stepper({ phase, step, total, reached, onJump, notes }: { phase: Phase; step: number; total: number; reached: number; onJump: (p: Phase) => void; notes?: boolean }) {
   const items: { id: Phase; label: string }[] = [
+    ...(notes ? [{ id: "before" as Phase, label: t("stepper.before") }] : []),
     { id: "tools", label: t("stepper.tools") },
     { id: "parts", label: t("stepper.parts") },
     { id: "steps", label: t("stepper.build") },
