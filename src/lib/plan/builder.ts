@@ -102,7 +102,7 @@ export function hwSpecText(kind: HwKind, len: number, dia: number) {
   }
 }
 
-const DUR = { part: 0.95, hw: 0.6, lift: 0.6, pad: 3.6 }; // lift: the extra for a part lifted over from where it waited (stage.ts LIFT); pad: a glide got ready and pressed on (stage.ts PAD_DUR)
+const DUR = { part: 0.95, hw: 0.6, lift: 0.6, pad: 4.0 }; // lift: the extra for a part lifted over from where it waited (stage.ts LIFT); pad: a glide got ready and pressed on (stage.ts PAD_DUR)
 
 export interface StepDef {
   title: string;

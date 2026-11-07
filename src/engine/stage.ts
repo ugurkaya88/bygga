@@ -48,7 +48,8 @@ const MARK_GAP = 0.4;
 const CAM_SMOOTH = 0.5; // seconds: how unhurried the view is when it moves to a new angle or framing
 // a stick-on glide got ready before it goes on (HwItem.pad): held turned over PAD_HOVER mm out, its pad comes PAD_REACH
 // mm onto it, the pad's backing is peeled, then it turns back and is pressed on. Times in seconds from its delay.
-const PAD = { reach: 0.45, peel: 1.45, off: 2.05, gone: 2.45, flip: 2.55, press: 2.95, dur: 3.6 }; // builder.ts DUR.pad
+const PAD = { reach: 0.45, peel: 1.4, peeled: 2.6, off: 2.55, gone: 2.9, flip: 2.95, press: 3.35, dur: 4.0 }; // builder.ts DUR.pad
+const PEEL_R = 6; // mm, how tight the backing curls where it leaves the pad
 const PAD_HOVER = 55;
 const PAD_REACH = 45;
 
@@ -1017,11 +1018,23 @@ export class Stage {
     // turned over, the glide's own -Y faces out: the pad and its backing come from there and leave that way
     const pad = h.d.root.getObjectByName("pad");
     if (pad) pad.position.set(0, -PAD_REACH * (1 - easeInOut(clamp01((u - PAD.reach) / 0.8))), 0);
+    // the backing peels like paper: from the tab end, the part already off curls up and back over the rest
+    // around a bend that runs along to the far end, then the whole sheet is taken away
     const film = h.d.root.getObjectByName("film");
     if (film) {
       film.visible = u < PAD.gone;
-      film.rotation.set(2.6 * easeInOut(clamp01((u - PAD.peel) / 0.8)), 0, 0);
-      film.position.set(0, -50 * easeInOut(clamp01((u - PAD.off) / (PAD.gone - PAD.off))), film.userData.z ?? 0);
+      const { z0, ds, segs } = film.userData as { z0: number; ds: number; segs: THREE.Object3D[] };
+      const len = ds * segs.length;
+      const front = len * (1 - easeInOut(clamp01((u - PAD.peel) / (PAD.peeled - PAD.peel))));
+      let y = -0.15, z = z0;
+      for (let i = 0; i < segs.length; i++) {
+        const a = Math.min(2.5, Math.max(0, ((i + 0.5) * ds - front) / PEEL_R));
+        segs[i].rotation.set(a, 0, 0);
+        segs[i].position.set(0, y - (Math.sin(a) * ds) / 2, z + (Math.cos(a) * ds) / 2);
+        y -= Math.sin(a) * ds;
+        z += Math.cos(a) * ds;
+      }
+      film.position.set(0, -50 * easeInOut(clamp01((u - PAD.off) / (PAD.gone - PAD.off))), 0);
     }
   }
 

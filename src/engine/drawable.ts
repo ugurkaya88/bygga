@@ -275,18 +275,27 @@ export function hwDrawable(kind: HwKind, len: number, dia: number) {
       const tape = 0.6, plate = 1.5, rib = Math.max(1, len - tape - plate);
       const half = dia / 2;
       // the pad and its paper backing in groups of their own, so the player can stick the pad on and peel the
-      // backing (stage.ts padPose); the backing hinges at the far end, its tab sticks out at the near one
+      // backing (stage.ts padPose). The backing is a chain of thin strips from the far end to the tab that sticks
+      // out at the near one, so it can curl off like paper; only its long sides and two ends are outlined.
       const pad = new THREE.Group();
       pad.name = "pad";
       d.root.add(pad);
       addSolid(d, `gs:tape:${dia}`, () => new THREE.BoxGeometry(17, tape, dia - 1), TAPE, { position: [0, tape / 2, 0], edges: false, parent: pad });
       const film = new THREE.Group();
       film.name = "film";
-      film.userData.z = -half - 0.5;
-      film.position.set(0, 0, film.userData.z);
       film.visible = false;
       pad.add(film);
-      addSolid(d, `gs:film:${dia}`, () => new THREE.BoxGeometry(17.4, 0.3, dia + 4.5), FILM, { position: [0, -0.15, (dia + 4.5) / 2], parent: film });
+      const flen = dia + 4.5, n = 24, ds = flen / n;
+      const segs: THREE.Object3D[] = [];
+      for (let i = 0; i < n; i++) {
+        const seg = addSolid(d, `gs:film:${ds.toFixed(3)}`, () => new THREE.BoxGeometry(17.2, 0.3, ds + 0.15), FILM, { edges: false, parent: film });
+        const ends = i === 0 ? "far" : i === n - 1 ? "tab" : "mid";
+        const lm = lineMaterial(1.6);
+        seg.add(new LineSegments2(stripEdges(ds, ends), lm));
+        d.lines.push(lm);
+        segs.push(seg);
+      }
+      film.userData = { z0: -half - 0.5, ds, segs };
       addSolid(d, `gs:plate:${dia}`, () => new THREE.BoxGeometry(18, plate, dia), plastic, { position: [0, tape + plate / 2, 0] });
       const y = tape + plate + rib / 2;
       const runs: [number, number][] = [
@@ -414,6 +423,25 @@ export function hwDrawable(kind: HwKind, len: number, dia: number) {
 const GRAPHITE = new THREE.Color("#5b5850");
 
 /** A pencil line `len` mm long along local x, or a round mark `dot` mm across (a drilled hole), lying on the surface (local +y out). */
+const stripCache = new Map<string, LineSegmentsGeometry>();
+/** The outline of one strip of a paper backing (17.4 mm wide, 0.3 thick, `ds` long): its long edges, and the
+ * end edge too when it is the backing's far end or tab, so a chain of strips reads as one sheet. */
+function stripEdges(ds: number, ends: "far" | "tab" | "mid") {
+  const key = `${ds.toFixed(3)}:${ends}`;
+  let g = stripCache.get(key);
+  if (!g) {
+    const pts: number[] = [];
+    for (const x of [-8.7, 8.7]) for (const y of [-0.15, 0.15]) pts.push(x, y, -ds / 2, x, y, ds / 2);
+    if (ends !== "mid") {
+      const z = ends === "far" ? -ds / 2 : ds / 2;
+      for (const y of [-0.15, 0.15]) pts.push(-8.7, y, z, 8.7, y, z);
+    }
+    g = new LineSegmentsGeometry().setPositions(pts);
+    stripCache.set(key, g);
+  }
+  return g;
+}
+
 export function markDrawable(len: number, dot: number) {
   const d = new Drawable();
   if (dot > 0) addSolid(d, `mark:dot:${dot}`, cyl(dot / 2, 0.8, 20), GRAPHITE, { position: [0, 0.4, 0], edges: false });
