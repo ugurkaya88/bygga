@@ -11,7 +11,7 @@ import { TOOL_INFO } from "../art/Tools";
 import { SCAN_ENABLED } from "@/lib/site";
 import { fmtMin as fmtMinutes, lower, manualSearchUrl, shortDate, t, tn, upper } from "@/lib/i18n";
 import { rich } from "@/lib/i18n/rich";
-import { BRAND, BRAND_INFO, displayName } from "@/lib/brand";
+import { BRAND_INFO, displayName } from "@/lib/brand";
 
 export default function CoverPanel({
   plan,
@@ -112,7 +112,7 @@ export default function CoverPanel({
             </li>
           )}
           {tot.twoAt.length > 0 && s.people === 1 && (
-            <li className={BRAND === "rehber" ? "safety" : undefined}>
+            <li className={BRAND_INFO.safetyCards ? "safety" : undefined}>
               <span className="prep-ico">
                 <IPeople size={18} />
               </span>

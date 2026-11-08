@@ -7,10 +7,12 @@
  *    text, 3:1 for the pairs only meant for large or bold text (on the accent).
  * 3. The pairs the panels use beyond the core tokens (selected states, hovers, the red and green grounds, icons),
  *    read from globals.css, tokens.css, panels.css and guide.css with var() resolved, pass the same minimums.
- * 4. For reference only: the drawing's lines against the colours its faces show (the face shader writes a hex's
- *    linear value), not the hex values in palette.ts.
+ * 4. The drawing at the colours its faces show (the face shader writes a hex's linear value), not the hex values in
+ *    palette.ts: the work lines (the edge lines of the parts being worked on) hold 3:1 on boards and fibre backs at
+ *    every shading step, untinted and with the new part's tint as it arrives (0.34) and once landed (0.24). The
+ *    earlier parts' lines, the wall, the lit tint and how far apart the faces read are printed for reference.
  *
- * Exits 1 on a Bygga mismatch or a pair under its minimum. Run from the Bygga checkout on Node 24:
+ * Exits 1 on a Bygga mismatch, a pair under its minimum or a work line under 3:1. Run from the Bygga checkout on Node 24:
  *   node --experimental-transform-types --no-warnings --import ./scripts/voice/register.mjs scripts/brand/check.ts
  */
 import { execFileSync } from "node:child_process";
@@ -205,7 +207,7 @@ for (const x of used) {
   console.log(`  ${pad(`${x.text} ${x.tc}`, 26)}on ${pad(`${x.ground} ${x.gc}`, 28)}${r.toFixed(2).padStart(6)}  ${ok ? "ok" : `FAIL, under ${x.min}`}  (${x.where})`);
 }
 
-/* ---------- 4. the drawing at the colours it shows, for reference ---------- */
+/* ---------- 4. the drawing at the colours it shows ---------- */
 
 // The face shader writes its colour without sRGB encoding, so a face shows the linear value of its hex (times the
 // shading step, with the new part's tint mixed in first); lines (LineMaterial) are encoded and show their hex.
@@ -217,25 +219,64 @@ function faceShows(face: string, shade = 1, tint = 0, tintHex = PALETTES.rehber.
   const t = rgb(tintHex).map(lin);
   return toHex(f.map((v, i) => (v * (1 - tint) + t[i] * tint) * shade));
 }
+// how far apart two shown colours read: CIE 1976 delta E in L*a*b* (about 2 is the least a glance tells apart)
+function lab(h: string) {
+  const [r, g, b] = rgb(h).map(lin);
+  const f = (v: number) => (v > 0.008856 ? Math.cbrt(v) : 7.787 * v + 16 / 116);
+  const x = f((0.4124 * r + 0.3576 * g + 0.1805 * b) / 0.95047);
+  const y = f(0.2126 * r + 0.7152 * g + 0.0722 * b);
+  const z = f((0.0193 * r + 0.1192 * g + 0.9505 * b) / 1.08883);
+  return [116 * y - 16, 500 * (x - y), 200 * (y - z)];
+}
+const deltaE = (a: string, b: string) => Math.hypot(...lab(a).map((v, i) => v - lab(b)[i]));
+
 const r = PALETTES.rehber;
+// the shader's steps: the lit top, then the faces turned away from the light (the right side and the back of a box
+// take the deepest step)
 const faces: [string, number][] = [
   ["top", 1],
   ["front", r.shade[0]],
-  ["side", r.shade[1]],
-  ["under", r.shade[2]],
+  ["oblique", r.shade[1]],
+  ["side", r.shade[2]],
 ];
-console.log("rehber drawing at its shown colours (for reference; faces show the linear value of their hex):");
-const board = faces.map(([n, s]) => `${n} ${faceShows(r.face.board, s)}`).join(", ");
-console.log(`  board ${r.face.board} shows ${board}`);
+// a new part is tinted 0.34 as it arrives and 0.24 once landed (stage.ts); 0.75 when lit or hovered
+const TINTS = [0, 0.24, 0.34];
+const sheets: [string, string][] = [
+  ["board", r.face.board],
+  ["fibre", r.face.fiber],
+];
+console.log("rehber drawing at its shown colours (faces show the linear value of their hex):");
+for (const [name, hexv] of sheets) console.log(`  ${pad(name, 6)}${hexv} shows ${faces.map(([n, s]) => `${n} ${faceShows(hexv, s)}`).join(", ")}`);
+console.log(`  work lines ${r.ink} (3:1 or more; per step: ${faces.map(([n]) => n).join(", ")}):`);
+for (const [name, hexv] of sheets)
+  for (const a of TINTS) {
+    const row = faces.map(([, s]) => {
+      const bg = faceShows(hexv, s, a);
+      const x = ratio(r.ink, bg);
+      if (x < 3) failed = true;
+      return `${bg} ${x.toFixed(2)}${x < 3 ? " FAIL" : ""}`;
+    });
+    console.log(`    ${pad(`${name}, ${a ? `new part, tint ${a}` : "untinted"}`, 28)}${row.join("   ")}`);
+  }
+console.log("  for reference:");
 const drawn: [string, string, string][] = [];
-for (const [n, s] of faces.slice(0, 3)) drawn.push([`edge lines on the board's ${n}`, r.ink, faceShows(r.face.board, s)]);
-for (const [n, s] of faces.slice(0, 3)) drawn.push([`earlier lines on the board's ${n}`, r.inkOld, faceShows(r.face.board, s)]);
-// a new part is tinted 0.34 as it arrives and 0.24 once landed (stage.ts), 0.75 when lit or hovered
-for (const a of [0.24, 0.34, 0.75]) drawn.push([`edge lines on the new part (tint ${a})`, r.ink, faceShows(r.face.board, 1, a)]);
+for (const [name, hexv] of sheets) for (const [n, s] of faces) drawn.push([`earlier lines on the ${name}'s ${n}`, r.inkOld, faceShows(hexv, s)]);
+drawn.push(["edge lines on the board, lit (tint 0.75)", r.ink, faceShows(r.face.board, 1, 0.75)]);
 drawn.push(["edge lines on the wall", r.ink, faceShows(r.face.wall)]);
 drawn.push(["earlier lines on the wall", r.inkOld, faceShows(r.face.wall)]);
-for (const [name, a, b] of drawn) console.log(`  ${pad(name, 42)}${a} on ${b}  ${ratio(a, b).toFixed(2)}`);
-console.log(`  wall ${r.face.wall} shows ${faceShows(r.face.wall)}, board top ${faceShows(r.face.board)}: the wall is the lighter`);
+for (const [name, a, b] of drawn) console.log(`    ${pad(name, 44)}${a} on ${b}  ${ratio(a, b).toFixed(2)}`);
+const apart: [string, string, string][] = [
+  ["board and fibre, top", faceShows(r.face.board), faceShows(r.face.fiber)],
+  ["board and fibre, side", faceShows(r.face.board, r.shade[2]), faceShows(r.face.fiber, r.shade[2])],
+  ["fibre and the wall", faceShows(r.face.fiber), faceShows(r.face.wall)],
+  ["board and the wall", faceShows(r.face.board), faceShows(r.face.wall)],
+  ["board and a new board (tint 0.24)", faceShows(r.face.board), faceShows(r.face.board, 1, 0.24)],
+  ["fibre and a new fibre (tint 0.24)", faceShows(r.face.fiber), faceShows(r.face.fiber, 1, 0.24)],
+  ["board's top and front", faceShows(r.face.board), faceShows(r.face.board, r.shade[0])],
+  ["board's front and side", faceShows(r.face.board, r.shade[0]), faceShows(r.face.board, r.shade[2])],
+];
+for (const [name, a, b] of apart) console.log(`    ${pad(`apart: ${name}`, 44)}${a} and ${b}  delta E ${deltaE(a, b).toFixed(1)}`);
+console.log(`    wall ${r.face.wall} shows ${faceShows(r.face.wall)}, board top ${faceShows(r.face.board)}: the wall is the lighter`);
 
 console.log(failed ? "result: FAIL" : "result: ok");
 process.exit(failed ? 1 : 0);

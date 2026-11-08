@@ -134,6 +134,13 @@ export function IArrowOut({ size = 14, className }: P) {
 }
 export const IWall = icon(BrickWall);
 
+/**
+ * The warnings about the buyer's safety: tipping over, fixing to the wall, lifting with two people. A step shows them
+ * as large callouts; a brand with safety cards (BRAND_INFO.safetyCards) sets them apart in red wherever they show.
+ */
+export const SAFETY_WARNINGS: readonly WarnId[] = ["tip", "wall", "two"];
+export const isSafety = (w?: WarnId) => !!w && SAFETY_WARNINGS.includes(w);
+
 /* Warning pictograms, shown in step cards. Strokes are in screen pixels, like the tool drawings. */
 export function WarnIcon({ id, size = 36 }: { id: WarnId; size?: number }) {
   const s = { stroke: "var(--ink)", strokeWidth: 1.75, strokeLinecap: "round", strokeLinejoin: "round", fill: "none" } as const;

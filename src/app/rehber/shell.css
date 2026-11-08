@@ -288,8 +288,9 @@
 
 /*
  * A 390 px phone with the notes screen in the stepper: the step count moves to the badge on the drawing (it says
- * the same), Done gives up its room until it is reached when there are five items, and the stepper takes only the
- * room left, so the feedback and help buttons always stay on screen (at worst the stepper's far end is cut).
+ * the same), Done gives up its room until it is reached when the notes are there too, and the stepper takes only
+ * the room left, so the feedback and help buttons always stay on screen (at worst the stepper's far end is cut).
+ * Items are picked by their data-id (the phase they open), so a new item or a new order does not change which go.
  */
 @media (max-width: 420px) {
   [data-brand="rehber"] .guide:not(.shell) .topbar {
@@ -308,14 +309,14 @@
     font-size: 13px;
   }
   [data-brand="rehber"] .stp-n,
-  [data-brand="rehber"] .stp.next:last-child:nth-child(5) {
+  [data-brand="rehber"] .stepper:has(> .stp[data-id="before"]) > .stp.next[data-id="done"] {
     display: none;
   }
 }
 
-/* the smallest phones on the done screen: the notes before step 1 (the first of five) give Done its room */
+/* the smallest phones on the done screen: the notes before step 1 give Done its room */
 @media (max-width: 380px) {
-  [data-brand="rehber"] .guide[data-phase="done"] .stp:first-child:nth-last-child(5) {
+  [data-brand="rehber"] .guide[data-phase="done"] .stp[data-id="before"] {
     display: none;
   }
 }

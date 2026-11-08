@@ -21,9 +21,10 @@ export default function Error({ error, reset }: { error: Error & { digest?: stri
         </header>
         <main className="nf-main">
           <Helper pose="think" bubble="!" size={120} />
-          <h1>{t("err.title")}</h1>
+          <h1>{t("notFound.error")}</h1>
+          <p>{t("error.body")}</p>
           <button className="btn primary" onClick={reset}>
-            {t("err.retry")}
+            {t("error.retry")}
           </button>
         </main>
       </div>

@@ -291,10 +291,10 @@ function NotFound({
     return (
       <div className="notfound">
         <Helper pose="think" bubble="!" size={120} />
-        <h1>{t("err.title")}</h1>
+        <h1>{t("notFound.error")}</h1>
         <p className="sub">{t("notFound.errorBody")}</p>
         <button className="btn primary" onClick={onRetry}>
-          {t("err.retry")}
+          {t("error.retry")}
         </button>
       </div>
     );
@@ -1252,7 +1252,7 @@ function Stepper({ phase, step, total, reached, onJump, notes }: { phase: Phase;
         const can = idx <= reached && idx !== cur && it.id !== "done";
         const building = it.id === "steps" && phase === "steps";
         return (
-          <button key={it.id} className={"stp " + state} disabled={!can} onClick={() => onJump(it.id)} aria-current={state === "now" ? "step" : undefined}>
+          <button key={it.id} className={"stp " + state} data-id={it.id} disabled={!can} onClick={() => onJump(it.id)} aria-current={state === "now" ? "step" : undefined}>
             {it.label}
             {building && (
               <span className="stp-n">

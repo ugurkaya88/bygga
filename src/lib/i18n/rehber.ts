@@ -14,7 +14,6 @@ export const REHBER_TR: Partial<Record<keyof typeof en, string>> = {
   "meta.buildTitle": `{name}: adım adım montaj | ${NAME}`,
   "meta.scannedTitle": `Taranmış kılavuz | ${NAME}`,
   "meta.printTitle": `Yazdır: {name} | ${NAME}`,
-  "guide.home": NAME,
   "key.sub": "Yapay zekâ özellikleri kendi Together AI anahtarınla çalışır.",
   "key.safe": `Bu tarayıcıda kalır. ${NAME} bunu hiçbir yerde saklamaz.`,
 };

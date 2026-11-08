@@ -2,17 +2,17 @@
 
 import { useEffect, useState } from "react";
 import { AnimatePresence, motion } from "motion/react";
-import type { Plan, WarnId } from "@/lib/types";
+import type { Plan } from "@/lib/types";
 import { stepContents, tipFor } from "@/lib/plan/contents";
 import { HwArt } from "../art/Hardware";
 import { ToolArt, TOOL_INFO } from "../art/Tools";
-import { IArrowLeft, IArrowRight, ICheck, IClock, IClose, IMic, ISparkle, WarnIcon, WARN_TEXT } from "../art/Icons";
+import { IArrowLeft, IArrowRight, ICheck, IClock, IClose, IMic, ISparkle, isSafety, WarnIcon, WARN_TEXT } from "../art/Icons";
 import { num, t } from "@/lib/i18n";
 import { TwoPeople } from "../art/Figure";
 import { SinkCheck } from "../art/SinkCheck";
 import Thumb from "../Thumb";
 import { getPref, setPref } from "@/lib/store";
-import { BRAND } from "@/lib/brand";
+import { BRAND, BRAND_INFO } from "@/lib/brand";
 
 /** The warm theme draws its own two-person sign: Bygga's little lifters are its helper character. */
 const REHBER = BRAND === "rehber";
@@ -43,9 +43,8 @@ export default function StepPanel({
   const c = stepContents(plan, index);
   const last = index === plan.steps.length - 1;
   const tip = tipFor(plan, index);
-  const isBig = (w: WarnId) => w === "two" || w === "tip" || w === "wall";
-  const big = s.warnings.filter((w) => isBig(w) && !(w === "wall" && s.warnings.includes("tip")));
-  const small = s.warnings.filter((w) => !isBig(w) && w !== "sink");
+  const big = s.warnings.filter((w) => isSafety(w) && !(w === "wall" && s.warnings.includes("tip")));
+  const small = s.warnings.filter((w) => !isSafety(w) && w !== "sink");
   const next = plan.steps[index + 1];
   const twoAhead = s.people === 1 ? plan.steps.slice(index + 1, index + 3).findIndex((x) => x.people === 2) : -1;
   const id = plan.spec.name + plan.spec.variant;
@@ -108,7 +107,7 @@ export default function StepPanel({
           )}
 
           {big.map((w) => (
-            <div key={w} className={"callout warn " + w + (REHBER ? " safety" : "")}>
+            <div key={w} className={"callout warn " + w + (BRAND_INFO.safetyCards ? " safety" : "")}>
               {w === "two" && !REHBER ? <TwoPeople size={36} /> : <WarnIcon id={w} size={36} />}
               <div>
                 <b>{w === "two" ? t("warn.twoTitle") : w === "tip" ? t("warn.tipTitle") : t("warn.wallTitle")}</b>

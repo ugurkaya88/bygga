@@ -620,9 +620,7 @@ const tr: Record<keyof typeof en, string> = {
   /* ---------- the step corner and the lost screens, as the warm theme (rehber) shows them ---------- */
   "corner.of": "/ {total}",
   "nf.title": "Sayfa bulunamadı",
-  "nf.body": "Bu adres bir kılavuza gitmiyor. Kutudaki QR kodu yeniden okutun.",
-  "err.title": "Bir şeyler ters gitti",
-  "err.retry": "Yeniden dene",
+  "nf.body": "Bu adres bir kılavuza gitmiyor. Kutudaki QR kodu yeniden okut.",
 };
 
 export default tr;

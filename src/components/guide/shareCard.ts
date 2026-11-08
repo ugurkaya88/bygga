@@ -9,10 +9,32 @@ const W = 1080;
 const H = 1350;
 const REHBER = BRAND === "rehber";
 
-/** The card's colours: Bygga's yellow and near black, or rehber's cream, terracotta and warm browns. */
-const C = REHBER
-  ? { page: "#f7f1e9", card: "#ffffff", line: "#eadfd2", ink: "#2d221c", ink2: "#5b4a40", ink3: "#766459", accent: "#c8643b", check: "#ffffff" }
-  : { page: "#f5f4f0", card: "#ffffff", line: "#e8e6e0", ink: "#121212", ink2: "#4a4945", ink3: "#8a877f", accent: "#ffd21f", check: "#121212" };
+type Colors = Record<"page" | "card" | "line" | "ink" | "ink2" | "ink3" | "accent" | "check", string>;
+
+/** Bygga's card: its yellow and near black, as the card has always been drawn. */
+const BYGGA_C: Colors = { page: "#f5f4f0", card: "#ffffff", line: "#e8e6e0", ink: "#121212", ink2: "#4a4945", ink3: "#8a877f", accent: "#ffd21f", check: "#121212" };
+
+/**
+ * The card's colours. Rehber's are its cream, terracotta and warm browns read from its tokens (rehber/tokens.css)
+ * as the page computes them, so the picture follows a token change; the values written here are only fallbacks.
+ */
+function colors(): Colors {
+  if (!REHBER) return BYGGA_C;
+  const css = getComputedStyle(document.documentElement);
+  const v = (name: string, fallback: string) => css.getPropertyValue(name).trim() || fallback;
+  return {
+    page: v("--page", "#f7f1e9"),
+    card: v("--card", "#ffffff"),
+    line: v("--line", "#eadfd2"),
+    ink: v("--ink", "#2d221c"),
+    ink2: v("--ink-2", "#5b4a40"),
+    ink3: v("--ink-3", "#766459"),
+    accent: v("--accent", "#c8643b"),
+    // the stamp's check: white on the terracotta, as on the step badge
+    check: "#ffffff",
+  };
+}
+
 /** Weights: rehber loads Nunito in 400, 600, 800 and 900 only, so its lighter lines take the nearest of those. */
 const WT = REHBER ? { label: 600, name: 800, variant: 600, stat: 800, brand: 800, tagline: 600 } : { label: 600, name: 800, variant: 500, stat: 700, brand: 800, tagline: 500 };
 
@@ -50,7 +72,7 @@ function fit(ctx: CanvasRenderingContext2D, text: string, max: number, size: num
 }
 
 /** The logo mark: an Allen bolt head seen from above; rehber's is a terracotta rounded square with a cream square turned 45 degrees in it. */
-function mark(ctx: CanvasRenderingContext2D, cx: number, cy: number, r: number) {
+function mark(ctx: CanvasRenderingContext2D, C: Colors, cx: number, cy: number, r: number) {
   if (REHBER) {
     round(ctx, cx - r, cy - r, r * 2, r * 2, (r * 2) / 3);
     ctx.fillStyle = C.accent;
@@ -96,6 +118,7 @@ export async function buildCard(plan: Plan, key: string, stat: string): Promise<
     c.width = W;
     c.height = H;
     const ctx = c.getContext("2d")!;
+    const C = colors();
     // rehber sets everything in Nunito (next/font puts it on <html> as --font-nunito)
     const display = font(REHBER ? "--font-nunito" : "--font-display", "system-ui, sans-serif");
     const body = font(REHBER ? "--font-nunito" : "--font-noto", "system-ui, sans-serif");
@@ -158,7 +181,7 @@ export async function buildCard(plan: Plan, key: string, stat: string): Promise<
     ctx.moveTo(110, 1236);
     ctx.lineTo(W - 110, 1236);
     ctx.stroke();
-    mark(ctx, 134, 1270, 22);
+    mark(ctx, C, 134, 1270, 22);
     ctx.fillStyle = C.ink;
     ctx.font = `${WT.brand} 30px ${display}`;
     ctx.fillText(REHBER ? BRAND_INFO.name : "bygga", 168, 1281);

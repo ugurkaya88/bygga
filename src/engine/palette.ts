@@ -65,8 +65,9 @@ export const PALETTES: Record<BrandId, DrawPalette> = {
     face: {
       // shows #f4e2cc, the warm oak #f3e3cc as near as 8 bits allow
       board: "#faf2e7",
-      // fibre backs: shows #e7d2b8, a darker, browner sheet than the boards
-      fiber: "#f4eadd",
+      // fibre backs: shows #e9dcd0, a step under the boards and greyer, so a back reads apart from the oak and
+      // keeps the edge lines at 3:1 or more on its least-lit face with the new part's tint
+      fiber: "#f5efe9",
       // solid wood: shows #efd8ba, a touch deeper and redder than the boards
       wood: "#f8edde",
       // shows #c6bcb1, a warm grey
@@ -84,7 +85,9 @@ export const PALETTES: Record<BrandId, DrawPalette> = {
       // shows #f6efe7, a warm stone lighter than the boards
       wall: "#fbf8f4",
     },
-    shade: [0.94, 0.89, 0.85],
+    // deeper than Bygga's 0.968, 0.938, 0.915, so faces read apart on the oak; the deepest stays light enough that
+    // edge lines hold 3:1 on a new part's least-lit face (scripts/brand/check.ts)
+    shade: [0.95, 0.92, 0.89],
     tape: "#c9bdb0",
     film: "#fbf6ee",
     graphite: "#5b4a40",
