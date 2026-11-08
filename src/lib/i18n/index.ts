@@ -1,5 +1,7 @@
 import en from "./en";
 import tr from "./tr";
+import { REHBER_TR } from "./rehber";
+import { BRAND } from "@/lib/brand";
 
 export type Locale = "en" | "tr";
 export type Key = keyof typeof en;
@@ -13,7 +15,8 @@ export type PluralKey = Key extends infer K ? (K extends `${infer B}.one` ? B : 
  */
 export const LOCALE: Locale = process.env.NEXT_PUBLIC_LOCALE === "tr" ? "tr" : "en";
 
-const DICT: Record<Key, string> = LOCALE === "tr" ? tr : en;
+// the warm theme's own words (rehber.ts) come first in Turkish; Bygga's tables stay as they are
+const DICT: Record<Key, string> = LOCALE === "tr" ? (BRAND === "rehber" ? { ...tr, ...REHBER_TR } : tr) : en;
 
 export type Vars = Record<string, string | number>;
 

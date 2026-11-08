@@ -616,6 +616,13 @@ const tr: Record<keyof typeof en, string> = {
   "error.body": "Bizim tarafta bir şeyler ters gitti. İlerlemen bu cihazda kayıtlı.",
   "error.retry": "Tekrar dene",
   "error.home": "Aramaya dön",
+
+  /* ---------- the step corner and the lost screens, as the warm theme (rehber) shows them ---------- */
+  "corner.of": "/ {total}",
+  "nf.title": "Sayfa bulunamadı",
+  "nf.body": "Bu adres bir kılavuza gitmiyor. Kutudaki QR kodu yeniden okutun.",
+  "err.title": "Bir şeyler ters gitti",
+  "err.retry": "Yeniden dene",
 };
 
 export default tr;

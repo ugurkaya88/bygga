@@ -614,6 +614,13 @@ const en = {
   "error.body": "Something went wrong on our side. Your progress is saved on this device.",
   "error.retry": "Try again",
   "error.home": "Back to search",
+
+  /* ---------- the step corner and the lost screens, as the warm theme (rehber) shows them ---------- */
+  "corner.of": "/ {total}",
+  "nf.title": "Page not found",
+  "nf.body": "This address does not lead to a guide. Scan the QR code on the box again.",
+  "err.title": "Something went wrong",
+  "err.retry": "Try again",
 } satisfies Record<string, string>;
 
 export default en;
