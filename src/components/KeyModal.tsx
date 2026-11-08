@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { motion } from "motion/react";
-import { Figure } from "./art/Figure";
+import { Helper } from "./art/Helper";
 import { ICamera, ICheck, IClose, IExternal, IImage, IKey, ILock, IMic, IVolume, IWand } from "./art/Icons";
 import { KEY_URL, setUserKey, useUserKey } from "@/lib/userKey";
 import { t } from "@/lib/i18n";
@@ -178,7 +178,7 @@ export default function KeyModal({
         </button>
 
         <div className="key-hero" aria-hidden="true">
-          <Figure pose="wave" size={92} />
+          <Helper pose="wave" size={92} />
           <span className="key-bubble">{copy.bubble}</span>
           <span className="key-tag">
             <IKey size={15} />

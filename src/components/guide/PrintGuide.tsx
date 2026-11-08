@@ -15,6 +15,7 @@ import { TOOL_INFO, ToolArt } from "../art/Tools";
 import { IArrowLeft, IPeople, IPrint } from "../art/Icons";
 import { fmtMin, t, tn } from "@/lib/i18n";
 import { SITE_URL } from "@/lib/site";
+import { BRAND_INFO, displayName } from "@/lib/brand";
 
 const PER_PAGE = 6;
 
@@ -83,7 +84,7 @@ function Doc({ plan, slug }: { plan: Plan; slug: string }) {
           <LogoMark size={28} />
           <span>{t("print.head")}</span>
         </header>
-        <h1>{s.name}</h1>
+        <h1>{displayName(s.name)}</h1>
         <p className="pp-variant">{s.variant}</p>
         <p className="pp-facts">
           {fmtMin(s.minutes)} &middot; {s.people === 2 ? t("print.twoPeople") : t("print.onePerson")} &middot; {tn("count.steps", total)} &middot; {tn("count.panels", tot.panels)} &middot; {tn("count.fittings", tot.fittings)}
@@ -141,7 +142,8 @@ function Doc({ plan, slug }: { plan: Plan; slug: string }) {
           </div>
         </div>
         <footer className="pp-foot">
-          <span>{t("print.follow", { url })}</span>
+          {/* the address is Bygga's site: a brand with no ways out leaves it off */}
+          {BRAND_INFO.exits && <span>{t("print.follow", { url })}</span>}
           <span>{t("print.note")}</span>
         </footer>
       </section>
@@ -183,7 +185,7 @@ function Doc({ plan, slug }: { plan: Plan; slug: string }) {
           </div>
           <footer className="pp-foot">
             <span>
-              {s.name}, {s.variant}
+              {displayName(s.name)}, {s.variant}
             </span>
             <span>
               {p + 2} / {pages.length + 1}

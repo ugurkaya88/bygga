@@ -6,7 +6,7 @@ import type { Plan } from "@/lib/types";
 import { faqFor } from "@/lib/faq";
 import { stepContents } from "@/lib/plan/contents";
 import { ICamera, IChevronDown, IClose, IExternal, IFlag, IKey, ISend, ISparkle } from "../art/Icons";
-import { Figure } from "../art/Figure";
+import { Helper } from "../art/Helper";
 import { HwArt } from "../art/Hardware";
 import Thumb from "../Thumb";
 import type { KeyTrouble, KeyWhy } from "../KeyModal";
@@ -269,7 +269,7 @@ export default function HelpSheet({
         onClick={(e) => e.stopPropagation()}
       >
         <div className="sheet-head">
-          <Figure pose="think" bubble="?" size={64} />
+          <Helper pose="think" bubble="?" size={64} />
           <div>
             <h2>{index >= 0 ? t("help.stuck", { n: index + 1 }) : t("help.need")}</h2>
             <p className="sub">{index >= 0 ? plan.steps[index].title : t("help.common")}</p>

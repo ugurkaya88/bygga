@@ -5,6 +5,7 @@ import { useEffect, useId, useRef, useState } from "react";
 import { IClose, IFeedback } from "../art/Icons";
 import { CheckDot } from "./ui";
 import { t } from "@/lib/i18n";
+import { displayName } from "@/lib/brand";
 
 const TOPICS = [
   { id: "looks", label: () => t("fb.looks") },
@@ -127,7 +128,7 @@ function Card({ ctx, onClose }: { ctx: FeedbackContext; onClose: () => void }) {
     setState(r?.ok ? "sent" : "failed");
   };
 
-  const where = [ctx.name, ctx.variant].filter(Boolean).join(" ");
+  const where = [displayName(ctx.name), ctx.variant].filter(Boolean).join(" ");
   const at = ctx.step ? t("step.n", { n: ctx.step }) : { cover: t("fb.atCover"), tools: t("stepper.tools"), parts: t("stepper.parts"), done: t("stepper.done") }[ctx.phase];
 
   return (

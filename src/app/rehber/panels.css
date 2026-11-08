@@ -1,1 +1,173 @@
 /* The warm theme (rehber): the panes, cards, buttons, callouts, sheets and the print view. Rules only under [data-brand="rehber"]. */
+
+/*
+ * The panel variables guide.css reads as var(--panel-*, <Bygga's own value>): set here only, so with no brand
+ * every one of them falls back and Bygga looks exactly as before.
+ */
+[data-brand="rehber"] {
+  /* the primary button, and a press of warm brown on hover */
+  --panel-btn: var(--btn);
+  --panel-on-btn: var(--on-btn);
+  --panel-btn-hover: #45362d;
+  /* a selected or going state that has to read at a glance: the accent for text, with white (5.7:1) */
+  --panel-hot: var(--accent-text);
+  --panel-on-hot: #ffffff;
+  --panel-hot-ring: var(--accent-text);
+  --panel-badge: var(--accent-text);
+  /* the round back and close buttons: a card with a line, as in the mockup */
+  --panel-round: var(--card);
+  --panel-round-hover: var(--sunk);
+  --panel-sunk-hover: var(--line);
+  --panel-hover-tint: rgba(45, 34, 28, 0.06);
+  --panel-shimmer: #f4ede4;
+  --panel-shimmer-hi: #fbf7f1;
+  /* panels and sheets on the raised surface, the foot of a pane with them */
+  --panel-foot: var(--raised);
+  --panel-sheet: var(--raised);
+  --panel-scrim: rgba(45, 34, 28, 0.32);
+  /* ordinary notes and tips on the soft accent; safety warnings get their own treatment below */
+  --panel-callout: var(--accent-soft);
+  --panel-note: var(--accent-soft);
+  --panel-note-ring: transparent;
+  --panel-warn: var(--raised);
+  --panel-warn-ring: var(--line);
+  --panel-before-n: var(--card);
+  --panel-prep-ico: var(--accent-soft);
+  --panel-link: var(--accent-text);
+  /* a picked card (a tool, the step on the overview) on the soft accent, edged in the accent */
+  --panel-picked: var(--accent-soft);
+  --panel-picked-ring: var(--accent);
+  /* the check on the Done button's terracotta dot, and the loader's progress */
+  --panel-done-ico: #ffffff;
+  --panel-progress: var(--accent);
+  --panel-flap: var(--sunk);
+}
+
+/* ---------- buttons: rounded squares rather than pills, the primary in heavy type ---------- */
+
+[data-brand="rehber"] .btn.primary {
+  border-radius: 16px;
+  font-weight: 800;
+}
+[data-brand="rehber"] .btn.primary.big {
+  border-radius: 18px;
+}
+[data-brand="rehber"] .btn.primary.small,
+[data-brand="rehber"] .btn.primary.fb-send,
+[data-brand="rehber"] .print-bar .btn.primary,
+[data-brand="rehber"] .btn.share-go {
+  border-radius: 14px;
+}
+[data-brand="rehber"] .btn.round {
+  border-radius: 16px;
+  box-shadow: inset 0 0 0 1.5px var(--line);
+}
+[data-brand="rehber"] .btn.round.small {
+  border-radius: 13px;
+}
+/* a round primary (the help sheet's send) wears the button colour, not the round one */
+[data-brand="rehber"] .btn.round.primary:not(:disabled) {
+  background: var(--panel-btn);
+  box-shadow: none;
+}
+[data-brand="rehber"] .btn.ghost {
+  border-radius: 14px;
+}
+[data-brand="rehber"] .toggle.on:not(.tickall),
+[data-brand="rehber"] .tbadge {
+  color: var(--panel-on-hot);
+}
+
+/* ---------- cover ---------- */
+
+/* the product's own name, in sentence case, at a size that fits rather than giant capitals */
+[data-brand="rehber"] .product-name {
+  font-size: clamp(36px, 3.2vw, 46px);
+  font-weight: 900;
+  letter-spacing: -0.02em;
+  line-height: 1.05;
+}
+[data-brand="rehber"] .stats,
+[data-brand="rehber"] .match {
+  background: var(--card);
+}
+[data-brand="rehber"] .prep-ico,
+[data-brand="rehber"] .before-n,
+[data-brand="rehber"] .callout.tip:not(.warn) > svg,
+[data-brand="rehber"] .callout.note > svg {
+  color: var(--accent-text);
+}
+
+/* ---------- safety: tipping over, fixing to the wall, two people ---------- */
+
+/*
+ * A calm card that still stands out from the soft accent of ordinary notes: the raised ground, a red edge on the
+ * left, and the icon and the title in red. The warning icons draw with var(--ink), so the icon takes the red there.
+ */
+[data-brand="rehber"] .callout.safety,
+[data-brand="rehber"] .before-card.safety,
+[data-brand="rehber"] .prep li.safety {
+  background: var(--raised);
+  box-shadow:
+    inset 3px 0 0 var(--danger),
+    inset 0 0 0 1px var(--line);
+}
+[data-brand="rehber"] .safety .line-art {
+  --ink: var(--danger);
+}
+[data-brand="rehber"] .callout.safety b,
+[data-brand="rehber"] .before-card.safety .before-text b {
+  color: var(--danger);
+}
+/* the cover's line asking for a second person: one sentence, so the whole line is its title */
+[data-brand="rehber"] .prep li.safety {
+  padding: 11px 12px 11px 14px;
+  border-radius: 14px;
+  color: var(--danger);
+  font-weight: 600;
+}
+[data-brand="rehber"] .prep li.safety .prep-ico {
+  margin-top: -2px;
+  background: var(--miss-soft);
+  color: var(--danger);
+}
+
+/* ---------- steps ---------- */
+
+[data-brand="rehber"] .needs li:hover .need-name small {
+  color: var(--ink-2);
+}
+
+/* ---------- done ---------- */
+
+[data-brand="rehber"] .done-hero .bounce {
+  animation: hop 0.9s var(--ease) infinite alternate;
+}
+/* "did it match the box": its yes and no have no ground of their own, so the browser's grey shows; give them the sunk one */
+[data-brand="rehber"] .match-btns .pill-btn {
+  background: var(--sunk);
+}
+[data-brand="rehber"] .match-btns .pill-btn:hover {
+  background: var(--panel-sunk-hover);
+}
+
+/* ---------- key modal: the glyph sits in the middle of the dotted ground, its bubble a quiet card ---------- */
+
+[data-brand="rehber"] .key-hero {
+  align-items: center;
+}
+[data-brand="rehber"] .key-bubble {
+  box-shadow: 0 0 0 1.5px var(--line-2);
+}
+
+/* ---------- print: dark on white for printers ---------- */
+
+/*
+ * The whole document is white paper: inside it the panel ground goes white, and the muted text and the rules take
+ * the darker of the warm values, so nothing prints faint. The drawings keep their warm oak, which prints fine.
+ */
+[data-brand="rehber"] .print-doc {
+  --paper: #ffffff;
+  --ink-3: #5b4a40;
+  --line: #dccfbf;
+}

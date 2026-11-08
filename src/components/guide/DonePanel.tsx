@@ -7,13 +7,14 @@ import type { Plan } from "@/lib/types";
 import { totals } from "@/lib/plan/contents";
 import { POPULAR } from "@/lib/search";
 import { buildMinutes, getPref, setPref } from "@/lib/store";
-import { Figure } from "../art/Figure";
+import { Helper } from "../art/Helper";
 import { IArrowLeft, IArrowRight, ICheck, ILibrary, IShare } from "../art/Icons";
 import Drawing from "../Drawing";
 import { LOCALE, fmtMin, t, tn } from "@/lib/i18n";
 import { buildCard } from "./shareCard";
 import { encodeSpec } from "@/lib/scan/share";
 import { track } from "@vercel/analytics";
+import { BRAND_INFO, displayName } from "@/lib/brand";
 
 export default function DonePanel({ plan, slug, finish, onReview }: { plan: Plan; slug: string; finish: { ms: number; full: boolean } | null; onReview: () => void }) {
   const tot = totals(plan);
@@ -30,10 +31,10 @@ export default function DonePanel({ plan, slug, finish, onReview }: { plan: Plan
     <div className="pane done">
       <div className="pane-scroll">
         <motion.div className="done-hero" initial={{ scale: 0.6, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} transition={{ type: "spring", stiffness: 260, damping: 16, delay: 0.1 }}>
-          <Figure pose="cheer" size={112} bubble="check" className="bounce" />
+          <Helper pose="cheer" size={112} bubble="check" className="bounce" />
         </motion.div>
         <motion.h2 className="done-title" initial={{ y: 16, opacity: 0 }} animate={{ y: 0, opacity: 1 }} transition={{ delay: 0.25, duration: 0.5, ease: [0.22, 1, 0.36, 1] }}>
-          {t("done.title", { name: s.name })}
+          {t("done.title", { name: displayName(s.name) })}
         </motion.h2>
         <motion.p className="sub center" initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.4 }}>
           {faster ? tn("done.faster", s.minutes - spent!) : spent ? t("done.ownPace") : t("done.allDone")}
@@ -55,16 +56,18 @@ export default function DonePanel({ plan, slug, finish, onReview }: { plan: Plan
 
         <ShareCard plan={plan} slug={slug} stat={stat} spent={spent} />
 
-        <Link href="/builds" className="workshop-link">
-          <span className="wl-ico">
-            <ILibrary size={18} />
-          </span>
-          <span>
-            <b>{t("done.saved")}</b>
-            <span>{t("done.savedBody")}</span>
-          </span>
-          <IArrowRight size={18} />
-        </Link>
+        {BRAND_INFO.exits && (
+          <Link href="/builds" className="workshop-link">
+            <span className="wl-ico">
+              <ILibrary size={18} />
+            </span>
+            <span>
+              <b>{t("done.saved")}</b>
+              <span>{t("done.savedBody")}</span>
+            </span>
+            <IArrowRight size={18} />
+          </Link>
+        )}
 
         <NextUp plan={plan} />
         <Match plan={plan} slug={slug} />
@@ -93,10 +96,12 @@ export default function DonePanel({ plan, slug, finish, onReview }: { plan: Plan
         <button className="btn round" onClick={onReview} aria-label={t("done.backAria")} data-tip={t("done.backTip")}>
           <IArrowLeft />
         </button>
-        <Link className="btn primary big" href="/">
-          <span>{t("done.else")}</span>
-          <IArrowRight />
-        </Link>
+        {BRAND_INFO.exits && (
+          <Link className="btn primary big" href="/">
+            <span>{t("done.else")}</span>
+            <IArrowRight />
+          </Link>
+        )}
       </div>
     </div>
   );
@@ -126,12 +131,13 @@ function ShareCard({ plan, slug, stat, spent }: { plan: Plan; slug: string; stat
   const share = async () => {
     // scanned guides only exist in this browser, so the link carries the guide itself
     const url = `${location.origin}/build/${slug}` + (plan.spec.source === "scan" ? `#g=${await encodeSpec(plan.spec)}` : "");
-    const text = spent ? t("done.shareText", { name: plan.spec.name, time: fmtMin(spent) }) : t("done.shareTextNoTime", { name: plan.spec.name });
+    const name = displayName(plan.spec.name);
+    const text = spent ? t("done.shareText", { name, time: fmtMin(spent) }) : t("done.shareTextNoTime", { name });
     const file = card ? new File([card.blob], `${plan.spec.name.toLowerCase()}-built.png`, { type: "image/png" }) : null;
     track("share", { product: plan.spec.name, image: !!file });
     try {
       if (file && navigator.canShare?.({ files: [file] })) await navigator.share({ files: [file], text: `${text} ${url}` });
-      else if (navigator.share) await navigator.share({ title: "Bygga", text, url });
+      else if (navigator.share) await navigator.share({ title: BRAND_INFO.name, text, url });
       else {
         await navigator.clipboard.writeText(`${text} ${url}`);
         setCopied(true);
@@ -146,7 +152,7 @@ function ShareCard({ plan, slug, stat, spent }: { plan: Plan; slug: string; stat
     <motion.div className="share-card" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.6 }}>
       <div className={"share-pic" + (card ? " ready" : "")}>
         {/* eslint-disable-next-line @next/next/no-img-element */}
-        {card && <img src={card.url} alt={t("done.shareAlt", { name: plan.spec.name })} />}
+        {card && <img src={card.url} alt={t("done.shareAlt", { name: displayName(plan.spec.name) })} />}
       </div>
       <div className="share-text">
         <b>{t("done.shareTitle")}</b>
@@ -171,7 +177,7 @@ function ShareCard({ plan, slug, stat, spent }: { plan: Plan; slug: string; stat
 function NextUp({ plan }: { plan: Plan }) {
   const s = plan.spec;
   const picks = useMemo(() => {
-    const own = (s.siblings ?? []).map((x) => ({ slug: x.slug, name: s.name, label: x.label }));
+    const own = (s.siblings ?? []).map((x) => ({ slug: x.slug, name: displayName(s.name), label: x.label }));
     // popular builds are IKEA products from the English catalog; a Turkish guide only suggests its own set
     const more = LOCALE === "tr" ? [] : POPULAR.filter((p) => p.name !== s.name).map((p) => ({ slug: p.slug, name: p.name, label: p.category }));
     return [...own, ...more].slice(0, own.length ? Math.min(3, own.length) : 3);
@@ -179,7 +185,7 @@ function NextUp({ plan }: { plan: Plan }) {
   if (!picks.length) return null;
   return (
     <>
-      <h3 className="section-title">{s.siblings?.length ? t("done.finishSet", { name: s.name }) : t("done.upNext")}</h3>
+      <h3 className="section-title">{s.siblings?.length ? t("done.finishSet", { name: displayName(s.name) }) : t("done.upNext")}</h3>
       <div className="next-up">
         {picks.map((p) => (
           <Link key={p.slug} href={`/build/${p.slug}`} className="next-card">
