@@ -3,6 +3,7 @@
 import { VOICE_DIR, clipId } from "@/lib/voice/script";
 import { canon, type Said } from "@/lib/voice/commands";
 import { keyHeaders } from "@/lib/userKey";
+import { BRAND_INFO } from "@/lib/brand";
 
 /**
  * Plays the hands-free voice. Lines with a pre-recorded clip play from
@@ -237,7 +238,7 @@ export function mediaSession(meta: { title: string; artist: string }, on: { next
   if (typeof navigator === "undefined" || !("mediaSession" in navigator)) return () => {};
   const ms = navigator.mediaSession;
   try {
-    ms.metadata = new MediaMetadata({ title: meta.title, artist: meta.artist, album: "Bygga" });
+    ms.metadata = new MediaMetadata({ title: meta.title, artist: meta.artist, album: BRAND_INFO.name });
   } catch {
     /* MediaMetadata missing */
   }

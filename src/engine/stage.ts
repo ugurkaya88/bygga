@@ -10,9 +10,11 @@ import { t as tx } from "@/lib/i18n";
 /**
  * How far down the stage's top left corner reaches in a step (GuideApp .corner), in px, desktop and phone: the step
  * number alone, and the number with the fittings box under it. Bygga's giant numeral is up to 100 px tall (50 on
- * phones), rehber's step badge 56 px (44); the countersunk check adds the same under either.
+ * phones), rehber's step badge 56 px (44); the countersunk check adds the same under either. Rehber's fittings
+ * height is measured, not summed: with two or more kinds the box is 79 px tall (69 on phones), so the corner ends
+ * at 163 (133); one kind ends higher.
  */
-const CORNER_H = BRAND === "rehber" ? { num: [84, 60], fittings: [156, 122] } : { num: [116, 62], fittings: [200, 128] };
+const CORNER_H = BRAND === "rehber" ? { num: [84, 60], fittings: [164, 134] } : { num: [116, 62], fittings: [200, 128] };
 
 /** Part names can come from a shared scan link: never let them through as markup. */
 const esc = (t: string) => String(t).replace(/[&<>"']/g, (c) => `&#${c.charCodeAt(0)};`);

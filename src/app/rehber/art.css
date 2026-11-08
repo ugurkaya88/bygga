@@ -19,7 +19,8 @@
   --art-board: #f3e3cc;
   --art-board-2: #e8d2b2;
   --art-screw: #b8ada1;
-  /* the tick and the cross stay a clear green and a clear red: the green a touch warmer, the red the danger red */
-  --art-ok: #2e8b47;
+  /* the tick and the cross stay a clear green and a clear red: the green as in Bygga (spec 3.1; the parts
+     checklist keeps it too), the red the danger red */
+  --art-ok: #1f9d55;
   --art-wrong: var(--danger);
 }

@@ -19,6 +19,8 @@
   --panel-round-hover: var(--sunk);
   --panel-sunk-hover: var(--line);
   --panel-hover-tint: rgba(45, 34, 28, 0.06);
+  /* the colour of the panels' own shadows (keys tip, share picture, feedback card, the phone's panel): the warm ink */
+  --panel-shadow-rgb: 45, 34, 28;
   --panel-shimmer: #f4ede4;
   --panel-shimmer-hi: #fbf7f1;
   /* panels and sheets on the raised surface, the foot of a pane with them */
@@ -90,6 +92,14 @@
 [data-brand="rehber"] .stats,
 [data-brand="rehber"] .match {
   background: var(--card);
+}
+/* Nunito's heavy figures run wider than Noto's: "1 sa 30 dk" otherwise reaches the next cell's line on a desktop */
+[data-brand="rehber"] .stats > div {
+  padding-left: 12px;
+  padding-right: 10px;
+}
+[data-brand="rehber"] .stats dd {
+  letter-spacing: -0.02em;
 }
 [data-brand="rehber"] .prep-ico,
 [data-brand="rehber"] .before-n,

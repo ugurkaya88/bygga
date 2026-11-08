@@ -677,7 +677,7 @@
   font-size: 13.5px;
   font-weight: 500;
   white-space: nowrap;
-  box-shadow: 0 10px 24px -14px rgba(18, 18, 18, 0.5);
+  box-shadow: 0 10px 24px -14px rgba(var(--panel-shadow-rgb, 18, 18, 18), 0.5);
 }
 .keys-tip::after {
   content: "";
@@ -1891,7 +1891,7 @@ input[type="range"] {
   background: #fff;
   box-shadow:
     0 0 0 1px var(--line),
-    0 6px 14px -10px rgba(18, 18, 18, 0.18);
+    0 6px 14px -10px rgba(var(--panel-shadow-rgb, 18, 18, 18), 0.18);
   overflow: hidden;
   transform: rotate(-4deg);
   transition: transform 0.5s var(--spring);
@@ -1900,7 +1900,7 @@ input[type="range"] {
   content: "";
   display: block;
   height: 100%;
-  background: linear-gradient(100deg, transparent 20%, rgba(18, 18, 18, 0.05) 50%, transparent 80%) -100% 0 / 200% 100%;
+  background: linear-gradient(100deg, transparent 20%, rgba(var(--panel-shadow-rgb, 18, 18, 18), 0.05) 50%, transparent 80%) -100% 0 / 200% 100%;
   animation: pic-shimmer 1.2s linear infinite;
 }
 .share-pic.ready::before {
@@ -2806,9 +2806,9 @@ button.pic:disabled {
   border-radius: 22px;
   background: var(--panel-sheet, #fff);
   box-shadow:
-    0 0 0 1px rgba(18, 18, 18, 0.07),
-    0 2px 4px rgba(18, 18, 18, 0.04),
-    0 24px 48px -20px rgba(18, 18, 18, 0.22);
+    0 0 0 1px rgba(var(--panel-shadow-rgb, 18, 18, 18), 0.07),
+    0 2px 4px rgba(var(--panel-shadow-rgb, 18, 18, 18), 0.04),
+    0 24px 48px -20px rgba(var(--panel-shadow-rgb, 18, 18, 18), 0.22);
   transform-origin: calc(100% - 92px) 0;
   overflow: hidden;
 }
@@ -3051,7 +3051,7 @@ button.pic:disabled {
     border-radius: 24px 24px 0 0;
     box-shadow:
       0 -1px 0 var(--line),
-      0 -6px 18px rgba(18, 18, 18, 0.035);
+      0 -6px 18px rgba(var(--panel-shadow-rgb, 18, 18, 18), 0.035);
   }
   .guide .topbar {
     gap: 8px;

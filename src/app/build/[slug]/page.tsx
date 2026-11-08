@@ -2,6 +2,7 @@ import { Suspense } from "react";
 import type { Metadata } from "next";
 import GuideApp from "@/components/guide/GuideApp";
 import { catalogSpec } from "@/lib/catalog";
+import { displayName } from "@/lib/brand";
 import { lower, t } from "@/lib/i18n";
 
 type Props = { params: Promise<{ slug: string }>; searchParams: Promise<Record<string, string | string[] | undefined>> };
@@ -11,7 +12,8 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   if (slug.startsWith("scan-")) return { title: t("meta.scannedTitle"), robots: { index: false } };
   const s = catalogSpec(decodeURIComponent(slug));
   const name = s ? `${s.name} ${lower(s.variant)}` : decodeURIComponent(slug).replace(/-/g, " ").toUpperCase();
-  const title = t("meta.buildTitle", { name });
+  // the tab shows the name the way the brand writes it (rehber: "Karmato", not "KARMATO"); Bygga keeps it as is
+  const title = t("meta.buildTitle", { name: displayName(name) });
   const description = s
     ? t("meta.buildDescriptionKnown", { name: `${s.name} ${lower(s.variant)}`, minutes: s.minutes, people: s.people === 2 ? t("meta.buildDescriptionTwo") : "" })
     : t("meta.buildDescriptionOther", { name });
