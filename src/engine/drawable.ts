@@ -5,6 +5,7 @@ import type { LineMaterial } from "three/examples/jsm/lines/LineMaterial.js";
 import { faceMaterial, hullMaterial, lineMaterial, withBoxHullDir, withCylHullDir, withHullDir } from "./materials";
 import type { HwKind, Hole, PartType } from "@/lib/types";
 import { FACE } from "./materials";
+import { PALETTE } from "./palette";
 
 export class Drawable {
   root = new THREE.Group();
@@ -181,8 +182,8 @@ function roundedBox(w: number, h: number, dpt: number, r: number) {
 
 /* ---------------- hardware ---------------- */
 
-const TAPE = new THREE.Color("#c4c3bd"); // a grey adhesive pad, as the manuals shade it
-const FILM = new THREE.Color("#f7f5ef"); // the paper backing on an adhesive pad
+const TAPE = new THREE.Color(PALETTE.tape); // a grey adhesive pad, as the manuals shade it
+const FILM = new THREE.Color(PALETTE.film); // the paper backing on an adhesive pad
 
 const cyl = (r: number, h: number, seg = 18) => () => new THREE.CylinderGeometry(r, r, h, seg);
 
@@ -420,7 +421,7 @@ export function hwDrawable(kind: HwKind, len: number, dia: number) {
   return d;
 }
 
-const GRAPHITE = new THREE.Color("#5b5850");
+const GRAPHITE = new THREE.Color(PALETTE.graphite);
 
 /** A pencil line `len` mm long along local x, or a round mark `dot` mm across (a drilled hole), lying on the surface (local +y out). */
 const stripCache = new Map<string, LineSegmentsGeometry>();

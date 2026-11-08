@@ -1,8 +1,14 @@
 import type { HwKind } from "@/lib/types";
 
-const METAL = "#e3e5e7";
-const WOOD = "#f1e2c3";
-const PLASTIC = "#f4f4f1";
+// Fills come from the theme (rehber/art.css); with no brand each falls back to Bygga's own colour.
+const METAL = "var(--art-metal, #e3e5e7)";
+/** a lighter face of metal: the turned-up side of a bracket, a hinge's cup, the top of a cam */
+const METAL_LIT = "var(--art-metal-lit, #eef0f1)";
+const METAL_TOP = "var(--art-metal-lit, #f2f3f4)";
+const WOOD = "var(--art-wood, #f1e2c3)";
+const PLASTIC = "var(--art-plastic, #f4f4f1)";
+/** holes seen through, and the light ribs of a glide */
+const PAPER = "var(--art-paper, #fff)";
 
 interface Drawn {
   w: number;
@@ -59,7 +65,7 @@ function draw(kind: HwKind, len: number, dia: number): Drawn {
         node: (
           <g transform="translate(0 -4)">
             <path d="M0 0 V9.5 A7.5 3.2 0 0 0 15 9.5 V0" fill={METAL} {...stroke} />
-            <ellipse cx={7.5} cy={0} rx={7.5} ry={3.2} fill="#f2f3f4" {...stroke} />
+            <ellipse cx={7.5} cy={0} rx={7.5} ry={3.2} fill={METAL_TOP} {...stroke} />
             <path d="M3.4 -1.1 L11.6 1.1" {...stroke} strokeWidth={2.2} />
             <path d="M10.6 -1.9 L13 -0.6 L11.2 0.6" fill="none" {...stroke} strokeWidth={1.1} />
           </g>
@@ -154,10 +160,10 @@ function draw(kind: HwKind, len: number, dia: number): Drawn {
               [63, 63],
               [7, 63],
             ].map(([x, y]) => (
-              <circle key={x + "-" + y} cx={x} cy={y} r={2.6} fill="#fff" {...stroke} />
+              <circle key={x + "-" + y} cx={x} cy={y} r={2.6} fill={PAPER} {...stroke} />
             ))}
-            <circle cx={35} cy={35} r={10} fill="#eef0f1" {...stroke} />
-            <circle cx={35} cy={35} r={4.6} fill="#fff" {...stroke} />
+            <circle cx={35} cy={35} r={10} fill={METAL_LIT} {...stroke} />
+            <circle cx={35} cy={35} r={4.6} fill={PAPER} {...stroke} />
           </g>
         ),
       };
@@ -169,10 +175,10 @@ function draw(kind: HwKind, len: number, dia: number): Drawn {
         node: (
           <g transform="translate(0 -23)">
             <path d="M6 30 L30 44 L46 34 L22 20 Z" fill={METAL} {...stroke} />
-            <path d="M22 20 L22 2 L46 16 L46 34 Z" fill="#eef0f1" {...stroke} />
-            <ellipse cx={34} cy={18} rx={2.6} ry={3.2} fill="#fff" {...stroke} />
-            <ellipse cx={21} cy={31} rx={3} ry={1.8} fill="#fff" {...stroke} />
-            <ellipse cx={31} cy={37} rx={3} ry={1.8} fill="#fff" {...stroke} />
+            <path d="M22 20 L22 2 L46 16 L46 34 Z" fill={METAL_LIT} {...stroke} />
+            <ellipse cx={34} cy={18} rx={2.6} ry={3.2} fill={PAPER} {...stroke} />
+            <ellipse cx={21} cy={31} rx={3} ry={1.8} fill={PAPER} {...stroke} />
+            <ellipse cx={31} cy={37} rx={3} ry={1.8} fill={PAPER} {...stroke} />
           </g>
         ),
       };
@@ -184,9 +190,9 @@ function draw(kind: HwKind, len: number, dia: number): Drawn {
         node: (
           <g>
             <path d="M0 -6 H114 L120 0 L114 6 H0 Z" fill={METAL} {...stroke} />
-            <path d="M0 -10 H112 V-6 H0 Z" fill="#eef0f1" {...stroke} />
+            <path d="M0 -10 H112 V-6 H0 Z" fill={METAL_LIT} {...stroke} />
             {[16, 60, 104].map((x) => (
-              <circle key={x} cx={x} cy={0} r={2} fill="#fff" {...stroke} />
+              <circle key={x} cx={x} cy={0} r={2} fill={PAPER} {...stroke} />
             ))}
           </g>
         ),
@@ -224,10 +230,10 @@ function draw(kind: HwKind, len: number, dia: number): Drawn {
         node: (
           <g>
             <rect x={28} y={-7} width={42} height={14} rx={3} fill={METAL} {...stroke} />
-            <rect x={66} y={-20} width={10} height={40} rx={2} fill="#eef0f1" {...stroke} />
+            <rect x={66} y={-20} width={10} height={40} rx={2} fill={METAL_LIT} {...stroke} />
             <circle cx={17.5} cy={0} r={17.5} fill={METAL} {...stroke} />
-            <circle cx={17.5} cy={0} r={12} fill="#eef0f1" {...stroke} />
-            <circle cx={3} cy={-15} r={2} fill="#fff" {...stroke} />
+            <circle cx={17.5} cy={0} r={12} fill={METAL_LIT} {...stroke} />
+            <circle cx={3} cy={-15} r={2} fill={PAPER} {...stroke} />
           </g>
         ),
       };
@@ -241,8 +247,8 @@ function draw(kind: HwKind, len: number, dia: number): Drawn {
           <g>
             <rect x={0} y={-6} width={40} height={12} rx={4} fill={METAL} {...stroke} />
             <rect x={13.5} y={-20} width={13} height={40} rx={3} fill={METAL} {...stroke} />
-            <circle cx={5.5} cy={0} r={2.2} fill="#fff" {...stroke} />
-            <circle cx={34.5} cy={0} r={2.2} fill="#fff" {...stroke} />
+            <circle cx={5.5} cy={0} r={2.2} fill={PAPER} {...stroke} />
+            <circle cx={34.5} cy={0} r={2.2} fill={PAPER} {...stroke} />
             <circle cx={20} cy={8} r={3} fill={METAL} {...stroke} />
             <path d="M18.2 8 H21.8 M20 6.2 V9.8" {...fine} />
           </g>
@@ -259,7 +265,7 @@ function draw(kind: HwKind, len: number, dia: number): Drawn {
             <path d="M0 -25 L0 25 L50 25 Z" fill={PLASTIC} {...stroke} />
             <path d="M5 -13 L5 20 L38 20 Z" fill="none" {...fine} />
             {[[5.5, -10], [5.5, 18.5], [35, 18.5]].map(([x, y]) => (
-              <circle key={x + "," + y} cx={x + 3} cy={y - 1.5} r={2} fill="#fff" {...stroke} />
+              <circle key={x + "," + y} cx={x + 3} cy={y - 1.5} r={2} fill={PAPER} {...stroke} />
             ))}
           </g>
         ),
@@ -282,12 +288,12 @@ function draw(kind: HwKind, len: number, dia: number): Drawn {
               [45, 57],
             ].map(([a, b]) => (
               <g key={a}>
-                <rect x={a} y={-7.4} width={b - a} height={2.6} fill="#fff" {...fine} />
-                <rect x={a} y={4.8} width={b - a} height={2.6} fill="#fff" {...fine} />
+                <rect x={a} y={-7.4} width={b - a} height={2.6} fill={PAPER} {...fine} />
+                <rect x={a} y={4.8} width={b - a} height={2.6} fill={PAPER} {...fine} />
               </g>
             ))}
             {[3, 54.4].map((x) => (
-              <rect key={x} x={x} y={-3} width={2.6} height={6} fill="#fff" {...fine} />
+              <rect key={x} x={x} y={-3} width={2.6} height={6} fill={PAPER} {...fine} />
             ))}
           </g>
         ),
@@ -319,7 +325,7 @@ function draw(kind: HwKind, len: number, dia: number): Drawn {
             <rect x={21.5} y={-40} width={9} height={21} rx={2} fill={METAL} {...stroke} />
             <rect x={15} y={-20} width={22} height={4} rx={1.5} fill={PLASTIC} {...stroke} />
             <circle cx={28} cy={14} r={25} fill={PLASTIC} {...stroke} />
-            <circle cx={28} cy={14} r={6} fill="#fff" {...stroke} />
+            <circle cx={28} cy={14} r={6} fill={PAPER} {...stroke} />
             <path d="M8 -16 H40 C46 -16 48 -12 48 -6 L46 4 H10 L6 -8 C6 -13 6 -16 8 -16 Z" fill={PLASTIC} {...stroke} />
           </g>
         ),
@@ -336,7 +342,7 @@ function draw(kind: HwKind, len: number, dia: number): Drawn {
               <rect key={x} x={x} y={-dia / 2} width={len / 2 - 3} height={dia} rx={2} fill={METAL} {...stroke} />
             ))}
             <rect x={len / 2 - 4} y={-dia / 2 - 1} width={8} height={dia + 2} rx={4} fill={METAL} {...stroke} />
-            {[len * 0.17, len * 0.83].flatMap((x) => [-dia / 4, dia / 4].map((y) => <circle key={`${x}:${y}`} cx={x} cy={y} r={2.2} fill="#fff" {...stroke} />))}
+            {[len * 0.17, len * 0.83].flatMap((x) => [-dia / 4, dia / 4].map((y) => <circle key={`${x}:${y}`} cx={x} cy={y} r={2.2} fill={PAPER} {...stroke} />))}
           </g>
         ),
       };
@@ -350,10 +356,10 @@ function draw(kind: HwKind, len: number, dia: number): Drawn {
           <g transform={`translate(0 ${(dia + 26) / 2 - 4})`}>
             <rect x={len / 2 - 4} y={-22} width={8} height={20} rx={2} fill={METAL} {...stroke} />
             <circle cx={len / 2} cy={-22 - dia / 2 + 4} r={dia / 2} fill={PLASTIC} {...stroke} />
-            <circle cx={len / 2} cy={-22 - dia / 2 + 4} r={3} fill="#fff" {...stroke} />
+            <circle cx={len / 2} cy={-22 - dia / 2 + 4} r={3} fill={PAPER} {...stroke} />
             <rect x={0} y={-3} width={len} height={7} rx={2} fill={METAL} {...stroke} />
             {[len * 0.18, len * 0.82].map((x) => (
-              <circle key={x} cx={x} cy={0.5} r={1.6} fill="#fff" {...stroke} />
+              <circle key={x} cx={x} cy={0.5} r={1.6} fill={PAPER} {...stroke} />
             ))}
           </g>
         ),
@@ -383,7 +389,7 @@ function draw(kind: HwKind, len: number, dia: number): Drawn {
           <g>
             <rect x={0} y={-dia / 2} width={len} height={dia} rx={3} fill={METAL} {...stroke} />
             {[len / 4, (3 * len) / 4].map((x) => (
-              <circle key={x} cx={x} cy={0} r={2.6} fill="#fff" {...stroke} />
+              <circle key={x} cx={x} cy={0} r={2.6} fill={PAPER} {...stroke} />
             ))}
           </g>
         ),
@@ -411,7 +417,7 @@ function draw(kind: HwKind, len: number, dia: number): Drawn {
           <g>
             <rect x={0} y={-dia / 2} width={len} height={dia} rx={4} fill={PLASTIC} {...stroke} />
             {[10, len - 10].map((x) => (
-              <circle key={x} cx={x} cy={0} r={2.6} fill="#fff" {...stroke} />
+              <circle key={x} cx={x} cy={0} r={2.6} fill={PAPER} {...stroke} />
             ))}
           </g>
         ),
@@ -419,10 +425,10 @@ function draw(kind: HwKind, len: number, dia: number): Drawn {
     case "nut": {
       const R = dia * 0.95;
       const pts = [0, 1, 2, 3, 4, 5].map((k) => `${R + R * Math.cos((k * Math.PI) / 3)},${R * Math.sin((k * Math.PI) / 3)}`).join(" ");
-      return { w: R * 2, h: R * 1.8, scalable: true, node: <g><polygon points={pts} fill={METAL} {...stroke} /><circle cx={R} cy={0} r={dia / 2} fill="#fff" {...stroke} /></g> };
+      return { w: R * 2, h: R * 1.8, scalable: true, node: <g><polygon points={pts} fill={METAL} {...stroke} /><circle cx={R} cy={0} r={dia / 2} fill={PAPER} {...stroke} /></g> };
     }
     case "washer":
-      return { w: dia, h: dia, scalable: true, node: <g><circle cx={dia / 2} cy={0} r={dia / 2} fill={METAL} {...stroke} /><circle cx={dia / 2} cy={0} r={dia / 5} fill="#fff" {...stroke} /></g> };
+      return { w: dia, h: dia, scalable: true, node: <g><circle cx={dia / 2} cy={0} r={dia / 2} fill={METAL} {...stroke} /><circle cx={dia / 2} cy={0} r={dia / 5} fill={PAPER} {...stroke} /></g> };
     case "stud":
       return {
         w: len,
@@ -445,7 +451,7 @@ function draw(kind: HwKind, len: number, dia: number): Drawn {
         node: (
           <g transform={`translate(0 ${-len / 2})`}>
             <path d={`M0 0 H2.5 V${len - 2.5} H${len} V${len} H0 Z`} fill={METAL} {...stroke} />
-            <circle cx={len * 0.6} cy={len - 1.2} r={0.9} fill="#fff" {...fine} />
+            <circle cx={len * 0.6} cy={len - 1.2} r={0.9} fill={PAPER} {...fine} />
           </g>
         ),
       };

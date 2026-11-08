@@ -1,1 +1,25 @@
 /* The warm theme (rehber): the fitting, tool, countersunk and helper art. Rules only under [data-brand="rehber"]. */
+/*
+ * The art (components/art) fills its shapes with var(--art-*, <Bygga's colour>), so with no brand every fill falls
+ * back to Bygga's own; here rehber sets them. Fittings take the drawing's hardware colours (engine/palette.ts):
+ * warm metal, oak and plastic that read apart from each other and from the boards. The helper glyphs draw in the
+ * core tokens (ink on accent soft) and need nothing here.
+ */
+[data-brand="rehber"] {
+  /* fittings */
+  --art-metal: #d8d2cb;
+  --art-metal-lit: #e8e3dd;
+  --art-wood: #e8cfa8;
+  --art-plastic: #f0e9e0;
+  /* holes seen through, white bodies of tools and warning pictograms, the halo round the countersunk marks */
+  --art-paper: var(--raised);
+  /* a tool's metal and grip parts */
+  --art-tool-metal: #e7dfd5;
+  /* the countersunk check: boards in the drawing's oak, the screw's head a darker warm metal */
+  --art-board: #f3e3cc;
+  --art-board-2: #e8d2b2;
+  --art-screw: #b8ada1;
+  /* the tick and the cross stay a clear green and a clear red: the green a touch warmer, the red the danger red */
+  --art-ok: #2e8b47;
+  --art-wrong: var(--danger);
+}

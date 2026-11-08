@@ -54,23 +54,35 @@ export const PALETTES: Record<BrandId, DrawPalette> = {
   },
   rehber: {
     ink: "#6e5646",
-    inkOld: "#ad9a8a",
+    // 2.9:1 on the boards, as Bygga's earlier lines are about 3:1 on its white boards
+    inkOld: "#978373",
+    // mixed into a face a third of the way (more when lit), so a new part shows a light terracotta
     tintNew: "#f2b48f",
+    // A face shows the linear value of its colour (the face shader writes it without sRGB encoding, and Bygga's
+    // look is tuned that way): "#f3e3cc" would show as a deep caramel. Faces among the boards are set so they show
+    // the tone after "shows"; fittings, metal and glass keep a colour that shows darker, so they stand apart from
+    // the oak the way Bygga's do from its white boards.
     face: {
-      board: "#f3e3cc",
-      // fibre backs: a darker, browner sheet than the boards
-      fiber: "#e6d2b8",
-      // solid wood: a touch deeper and redder than the boards
-      wood: "#efd8bb",
+      // shows #f4e2cc, the warm oak #f3e3cc as near as 8 bits allow
+      board: "#faf2e7",
+      // fibre backs: shows #e7d2b8, a darker, browner sheet than the boards
+      fiber: "#f4eadd",
+      // solid wood: shows #efd8ba, a touch deeper and redder than the boards
+      wood: "#f8edde",
+      // shows #c6bcb1, a warm grey
       metal: "#e4dfd9",
-      soft: "#f1e8de",
-      // still a cool pale tint, so glass reads apart from the oak boards
+      // shows #f2e9de
+      soft: "#f9f5f0",
+      // shows #c4d4ce, a cool tint, so glass reads apart from the oak boards
       glass: "#e3ebe8",
+      // shows #afa498
       hwMetal: "#d8d2cb",
+      // dowels and knobs: shows #ce9f64
       hwWood: "#e8cfa8",
-      hwPlastic: "#f0e9e0",
-      // a warm stone, lighter than the boards
-      wall: "#f6efe6",
+      // shows #f2efeb, a whitish plastic on the oak
+      hwPlastic: "#f9f8f6",
+      // shows #f6efe7, a warm stone lighter than the boards
+      wall: "#fbf8f4",
     },
     shade: [0.94, 0.89, 0.85],
     tape: "#c9bdb0",

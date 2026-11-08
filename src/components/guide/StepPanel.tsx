@@ -12,6 +12,10 @@ import { TwoPeople } from "../art/Figure";
 import { SinkCheck } from "../art/SinkCheck";
 import Thumb from "../Thumb";
 import { getPref, setPref } from "@/lib/store";
+import { BRAND } from "@/lib/brand";
+
+/** The warm theme draws its own two-person sign: Bygga's little lifters are its helper character. */
+const REHBER = BRAND === "rehber";
 
 export function minutesLeft(plan: Plan, index: number) {
   return plan.steps.slice(index).reduce((s, x) => s + x.minutes, 0);
@@ -104,8 +108,8 @@ export default function StepPanel({
           )}
 
           {big.map((w) => (
-            <div key={w} className={"callout warn " + w}>
-              {w === "two" ? <TwoPeople size={36} /> : <WarnIcon id={w} size={36} />}
+            <div key={w} className={"callout warn " + w + (REHBER ? " safety" : "")}>
+              {w === "two" && !REHBER ? <TwoPeople size={36} /> : <WarnIcon id={w} size={36} />}
               <div>
                 <b>{w === "two" ? t("warn.twoTitle") : w === "tip" ? t("warn.tipTitle") : t("warn.wallTitle")}</b>
                 <span>{w === "two" ? t("warn.twoBody") : w === "tip" ? t("warn.tipBody") : t("warn.wallBody")}</span>
@@ -179,7 +183,7 @@ export default function StepPanel({
 
           {twoAhead >= 0 && (
             <p className="heads-up">
-              <TwoPeople size={22} /> {t("step.headsUp", { n: index + 2 + twoAhead })}
+              {REHBER ? <WarnIcon id="two" size={22} /> : <TwoPeople size={22} />} {t("step.headsUp", { n: index + 2 + twoAhead })}
             </p>
           )}
 

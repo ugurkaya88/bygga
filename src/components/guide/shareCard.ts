@@ -3,9 +3,18 @@
 import type { Plan } from "@/lib/types";
 import { shot } from "@/engine/thumbs";
 import { t } from "@/lib/i18n";
+import { BRAND, BRAND_INFO, displayName } from "@/lib/brand";
 
 const W = 1080;
 const H = 1350;
+const REHBER = BRAND === "rehber";
+
+/** The card's colours: Bygga's yellow and near black, or rehber's cream, terracotta and warm browns. */
+const C = REHBER
+  ? { page: "#f7f1e9", card: "#ffffff", line: "#eadfd2", ink: "#2d221c", ink2: "#5b4a40", ink3: "#766459", accent: "#c8643b", check: "#ffffff" }
+  : { page: "#f5f4f0", card: "#ffffff", line: "#e8e6e0", ink: "#121212", ink2: "#4a4945", ink3: "#8a877f", accent: "#ffd21f", check: "#121212" };
+/** Weights: rehber loads Nunito in 400, 600, 800 and 900 only, so its lighter lines take the nearest of those. */
+const WT = REHBER ? { label: 600, name: 800, variant: 600, stat: 800, brand: 800, tagline: 600 } : { label: 600, name: 800, variant: 500, stat: 700, brand: 800, tagline: 500 };
 
 function font(name: string, fallback: string) {
   const v = getComputedStyle(document.documentElement).getPropertyValue(name).trim();
@@ -40,8 +49,23 @@ function fit(ctx: CanvasRenderingContext2D, text: string, max: number, size: num
   } while (ctx.measureText(text).width > max && s > 40);
 }
 
-/** The logo mark: an Allen bolt head seen from above. */
+/** The logo mark: an Allen bolt head seen from above; rehber's is a terracotta rounded square with a cream square turned 45 degrees in it. */
 function mark(ctx: CanvasRenderingContext2D, cx: number, cy: number, r: number) {
+  if (REHBER) {
+    round(ctx, cx - r, cy - r, r * 2, r * 2, (r * 2) / 3);
+    ctx.fillStyle = C.accent;
+    ctx.fill();
+    const k = r * 0.32;
+    ctx.save();
+    ctx.translate(cx, cy);
+    ctx.rotate(Math.PI / 4);
+    round(ctx, -k, -k, k * 2, k * 2, k * 0.36);
+    ctx.lineWidth = r * 0.2;
+    ctx.strokeStyle = C.page;
+    ctx.stroke();
+    ctx.restore();
+    return;
+  }
   ctx.fillStyle = "#121212";
   ctx.beginPath();
   ctx.arc(cx, cy, r, 0, Math.PI * 2);
@@ -72,16 +96,20 @@ export async function buildCard(plan: Plan, key: string, stat: string): Promise<
     c.width = W;
     c.height = H;
     const ctx = c.getContext("2d")!;
-    const display = font("--font-display", "system-ui, sans-serif");
-    const body = font("--font-noto", "system-ui, sans-serif");
+    // rehber sets everything in Nunito (next/font puts it on <html> as --font-nunito)
+    const display = font(REHBER ? "--font-nunito" : "--font-display", "system-ui, sans-serif");
+    const body = font(REHBER ? "--font-nunito" : "--font-noto", "system-ui, sans-serif");
+    // Nunito is not preloaded: make sure the weights drawn here are in before measuring and drawing
+    if (REHBER) await Promise.all([...new Set(Object.values(WT))].map((w) => document.fonts?.load(`${w} 40px ${body}`))).catch(() => {});
+    const name = displayName(plan.spec.name);
 
-    ctx.fillStyle = "#f5f4f0";
+    ctx.fillStyle = C.page;
     ctx.fillRect(0, 0, W, H);
     round(ctx, 48, 48, W - 96, H - 96, 56);
-    ctx.fillStyle = "#ffffff";
+    ctx.fillStyle = C.card;
     ctx.fill();
     ctx.lineWidth = 3;
-    ctx.strokeStyle = "#e8e6e0";
+    ctx.strokeStyle = C.line;
     ctx.stroke();
 
     // multiply, so the drawing's own white sheet melts into the card instead of showing as a box
@@ -89,14 +117,16 @@ export async function buildCard(plan: Plan, key: string, stat: string): Promise<
     ctx.drawImage(img, 90, 96, 900, 760);
     ctx.globalCompositeOperation = "source-over";
 
-    // the stamp: a yellow check, like a finished page in a manual
-    ctx.fillStyle = "#ffd21f";
+    // the stamp: a yellow check, like a finished page in a manual (rehber: a white check on terracotta, no ring)
+    ctx.fillStyle = C.accent;
     ctx.beginPath();
     ctx.arc(W - 150, 150, 58, 0, Math.PI * 2);
     ctx.fill();
-    ctx.lineWidth = 5;
-    ctx.strokeStyle = "#121212";
-    ctx.stroke();
+    ctx.strokeStyle = C.check;
+    if (!REHBER) {
+      ctx.lineWidth = 5;
+      ctx.stroke();
+    }
     ctx.lineWidth = 11;
     ctx.lineCap = "round";
     ctx.lineJoin = "round";
@@ -106,34 +136,34 @@ export async function buildCard(plan: Plan, key: string, stat: string): Promise<
     ctx.lineTo(W - 120, 132);
     ctx.stroke();
 
-    ctx.fillStyle = "#8a877f";
-    ctx.font = `600 30px ${body}`;
+    ctx.fillStyle = C.ink3;
+    ctx.font = `${WT.label} 30px ${body}`;
     ctx.letterSpacing = "4px";
     ctx.fillText(t("done.cardBuilt"), 110, 950);
     ctx.letterSpacing = "0px";
-    ctx.fillStyle = "#121212";
-    fit(ctx, plan.spec.name, W - 220, 132, display, 800);
-    ctx.fillText(plan.spec.name, 104, 1070);
-    ctx.fillStyle = "#4a4945";
-    fit(ctx, plan.spec.variant, W - 220, 42, body, 500);
+    ctx.fillStyle = C.ink;
+    fit(ctx, name, W - 220, 132, display, WT.name);
+    ctx.fillText(name, 104, 1070);
+    ctx.fillStyle = C.ink2;
+    fit(ctx, plan.spec.variant, W - 220, 42, body, WT.variant);
     ctx.fillText(plan.spec.variant, 110, 1130);
 
-    ctx.fillStyle = "#121212";
-    ctx.font = `700 38px ${body}`;
+    ctx.fillStyle = C.ink;
+    ctx.font = `${WT.stat} 38px ${body}`;
     ctx.fillText(stat, 110, 1206);
 
-    ctx.strokeStyle = "#e8e6e0";
+    ctx.strokeStyle = C.line;
     ctx.lineWidth = 2;
     ctx.beginPath();
     ctx.moveTo(110, 1236);
     ctx.lineTo(W - 110, 1236);
     ctx.stroke();
     mark(ctx, 134, 1270, 22);
-    ctx.fillStyle = "#121212";
-    ctx.font = `800 30px ${display}`;
-    ctx.fillText("bygga", 168, 1281);
-    ctx.fillStyle = "#8a877f";
-    ctx.font = `500 26px ${body}`;
+    ctx.fillStyle = C.ink;
+    ctx.font = `${WT.brand} 30px ${display}`;
+    ctx.fillText(REHBER ? BRAND_INFO.name : "bygga", 168, 1281);
+    ctx.fillStyle = C.ink3;
+    ctx.font = `${WT.tagline} 26px ${body}`;
     const host = location.host.replace(/^www\./, "");
     ctx.textAlign = "right";
     ctx.fillText(t("done.cardTagline", { host }), W - 110, 1280);

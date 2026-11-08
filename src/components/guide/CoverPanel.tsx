@@ -11,6 +11,7 @@ import { TOOL_INFO } from "../art/Tools";
 import { SCAN_ENABLED } from "@/lib/site";
 import { fmtMin as fmtMinutes, lower, manualSearchUrl, shortDate, t, tn, upper } from "@/lib/i18n";
 import { rich } from "@/lib/i18n/rich";
+import { BRAND, BRAND_INFO, displayName } from "@/lib/brand";
 
 export default function CoverPanel({
   plan,
@@ -43,7 +44,7 @@ export default function CoverPanel({
       <div className="pane-scroll">
         <header className="pane-head">
           <p className="eyebrow">{s.brand ? `${s.brand}, ${lower(s.category)}` : s.category}</p>
-          <h1 className="product-name">{s.name}</h1>
+          <h1 className="product-name">{displayName(s.name)}</h1>
           <p className="product-variant">{s.variant}</p>
           {built && (
             <p className="built-pill">
@@ -111,7 +112,7 @@ export default function CoverPanel({
             </li>
           )}
           {tot.twoAt.length > 0 && s.people === 1 && (
-            <li>
+            <li className={BRAND === "rehber" ? "safety" : undefined}>
               <span className="prep-ico">
                 <IPeople size={18} />
               </span>
@@ -130,7 +131,7 @@ export default function CoverPanel({
 
         {s.siblings && s.siblings.length > 0 && (
           <>
-            <h3 className="section-title">{t("cover.siblings", { name: s.name })}</h3>
+            <h3 className="section-title">{t("cover.siblings", { name: displayName(s.name) })}</h3>
             <div className="chips">
               {s.siblings.slice(0, 6).map((v) => (
                 <Link key={v.slug} href={`/build/${v.slug}`} className="chip ghost">
@@ -147,9 +148,9 @@ export default function CoverPanel({
             <div>
               <b>{s.custom?.fromCover ? t("cover.scanCoverTitle") : t("cover.scanMadeTitle")}</b>
               <span>
-                {s.custom?.fromCover ? t("cover.scanCoverBody") + (SCAN_ENABLED ? t("cover.scanCoverMore") : t("cover.keepManual")) : t("cover.scanMadeBody")}
+                {s.custom?.fromCover ? t("cover.scanCoverBody") + (SCAN_ENABLED && BRAND_INFO.exits ? t("cover.scanCoverMore") : t("cover.keepManual")) : t("cover.scanMadeBody")}
               </span>
-              {s.custom?.fromCover && SCAN_ENABLED && (
+              {s.custom?.fromCover && SCAN_ENABLED && BRAND_INFO.exits && (
                 <Link href="/scan" className="callout-link">
                   {t("cover.scanPages")}
                 </Link>

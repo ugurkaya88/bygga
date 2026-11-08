@@ -3,7 +3,16 @@ import type { HwItem, PartItem, PartState, PartType, Plan, Step, Vec3 } from "@/
 import { POSE_EULER } from "@/lib/plan/math";
 import { Drawable, hwDrawable, markDrawable, partDrawable, wallDrawable } from "./drawable";
 import { INK, INK_OLD } from "./materials";
+import { PALETTE } from "./palette";
+import { BRAND } from "@/lib/brand";
 import { t as tx } from "@/lib/i18n";
+
+/**
+ * How far down the stage's top left corner reaches in a step (GuideApp .corner), in px, desktop and phone: the step
+ * number alone, and the number with the fittings box under it. Bygga's giant numeral is up to 100 px tall (50 on
+ * phones), rehber's step badge 56 px (44); the countersunk check adds the same under either.
+ */
+const CORNER_H = BRAND === "rehber" ? { num: [84, 60], fittings: [156, 122] } : { num: [116, 62], fittings: [200, 128] };
 
 /** Part names can come from a shared scan link: never let them through as markup. */
 const esc = (t: string) => String(t).replace(/[&<>"']/g, (c) => `&#${c.charCodeAt(0)};`);
@@ -229,9 +238,10 @@ export class Stage {
     cv.width = cv.height = 128;
     const g = cv.getContext("2d")!;
     const grd = g.createRadialGradient(64, 64, 4, 64, 64, 64);
-    grd.addColorStop(0, "rgba(20,20,20,0.16)");
-    grd.addColorStop(0.55, "rgba(20,20,20,0.07)");
-    grd.addColorStop(1, "rgba(20,20,20,0)");
+    const rgb = PALETTE.shadow.join(",");
+    grd.addColorStop(0, `rgba(${rgb},0.16)`);
+    grd.addColorStop(0.55, `rgba(${rgb},0.07)`);
+    grd.addColorStop(1, `rgba(${rgb},0)`);
     g.fillStyle = grd;
     g.fillRect(0, 0, 128, 128);
     const tex = new THREE.CanvasTexture(cv);
@@ -297,7 +307,7 @@ export class Stage {
     wrap.style.visibility = "hidden";
     const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
     renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
-    renderer.setClearColor(0xffffff, 1);
+    renderer.setClearColor(PALETTE.closeUp, 1);
     wrap.appendChild(renderer.domElement);
     const ns = "http://www.w3.org/2000/svg";
     const svg = document.createElementNS(ns, "svg") as SVGSVGElement;
@@ -1166,7 +1176,7 @@ export class Stage {
     const starts: [number, number][] = [[mL, mT]];
     if (k === "step" && (this.cornerItems || this.sinkBox)) {
       // the step number alone is inside the top margin; the countersunk check sits under the fittings box
-      let boxH = this.cornerItems ? (mob ? 128 : 200) : mob ? 62 : 116;
+      let boxH = (this.cornerItems ? CORNER_H.fittings : CORNER_H.num)[mob ? 1 : 0];
       let boxW = this.cornerItems ? (mob ? 34 + this.cornerItems * 48 : 46 + this.cornerItems * 62) : 0;
       if (this.sinkBox) {
         boxH += mob ? 72 : 96;

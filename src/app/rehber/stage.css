@@ -1,1 +1,30 @@
 /* The warm theme (rehber): the stage overlay, close-up and labels (.stage-*). Rules only under [data-brand="rehber"]. */
+
+/*
+ * Leaders, leader dots, the close-up circle's outline, the squaring check, dimensions and the hover tip already draw
+ * in var(--ink) (globals.css), which is the warm ink here: only what is not ink changes below.
+ */
+
+/* arrows (parts flying in, the close-up's push in and turn) in the accent, with the white halo as before */
+[data-brand="rehber"] .stage-overlay .arrow,
+[data-brand="rehber"] .stage-callout-svg .arrow,
+[data-brand="rehber"] .stage-callout-svg .arrow.turn {
+  fill: var(--accent);
+}
+
+/* which of a step's numbered actions the close-up shows: white bold numeral on the accent */
+[data-brand="rehber"] .stage-callout-svg .phase circle {
+  fill: var(--accent);
+}
+
+/* the close-up circle: its ground is the raised surface (stage.ts clears its drawing to the same) */
+[data-brand="rehber"] .stage-callout {
+  background: var(--raised);
+  box-shadow: 0 0 0 1.6px var(--ink), 0 6px 16px -10px rgba(45, 34, 28, 0.12);
+}
+
+/* the part a fitting or the pane points at: accent soft with ink text */
+[data-brand="rehber"] .stage-label.lit {
+  background: var(--accent-soft);
+  color: var(--ink);
+}
