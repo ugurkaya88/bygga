@@ -16,4 +16,6 @@ export const REHBER_TR: Partial<Record<keyof typeof en, string>> = {
   "meta.printTitle": `Yazdır: {name} | ${NAME}`,
   "key.sub": "Yapay zekâ özellikleri kendi Together AI anahtarınla çalışır.",
   "key.safe": `Bu tarayıcıda kalır. ${NAME} bunu hiçbir yerde saklamaz.`,
+  // the rehber error page's title already says something went wrong
+  "error.body": "İlerlemen bu cihazda kayıtlı.",
 };

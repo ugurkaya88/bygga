@@ -32,14 +32,15 @@ export const BRAND_INFO: BrandInfo = BRANDS[BRAND];
  * case as it is written ("Makyaj Masası 1747", "Billy"): the casing of a Latin name cannot be guessed (the I of
  * "STANDI" is a Turkish dotless one, the I of "BILLY" is not), so authors write it as a buyer would. A name in all
  * capitals is recased word by word with Turkish rules, the first word with a capital ("KARMATO" gives "Karmato",
- * "KİTAPLIK" gives "Kitaplık"), and a word of up to three letters is kept as it is, since it is most likely an
- * abbreviation ("ELİTE TV STANDI" gives "Elite TV standı", "MDF RAF" stays).
+ * "KİTAPLIK" gives "Kitaplık"), and a word of up to three letters with no vowel is kept as it is, since it is most
+ * likely an abbreviation ("ELİTE TV STANDI" gives "Elite TV standı", "MDF RAF" gives "MDF raf", while short words
+ * such as "ÇOK" and "VE" are recased).
  */
 export function displayName(name: string): string {
   if (BRAND !== "rehber") return name;
   if (/\p{Ll}/u.test(name) || !/\p{Lu}/u.test(name)) return name;
   return name.replace(/\S+/g, (word, at: number) => {
-    if ((word.match(/\p{L}/gu)?.length ?? 0) <= 3) return word;
+    if ((word.match(/\p{L}/gu)?.length ?? 0) <= 3 && !/[AEIİOÖUÜ]/u.test(word)) return word;
     const low = word.toLocaleLowerCase("tr");
     return at === 0 ? low.replace(/\p{L}/u, (c) => c.toLocaleUpperCase("tr")) : low;
   });
