@@ -1,9 +1,11 @@
 import Link from "next/link";
+import { BRAND, BRAND_INFO } from "@/lib/brand";
 
 const HEX = "M16 6.2 L24.5 11.1 L24.5 20.9 L16 25.8 L7.5 20.9 L7.5 11.1 Z";
 
-/** The mark: an Allen bolt head seen from above. */
+/** The mark: an Allen bolt head seen from above; in rehber, a terracotta rounded square with a cream square turned in it. */
 export function LogoMark({ size = 32, className }: { size?: number; className?: string }) {
+  if (BRAND === "rehber") return <RehberMark size={size} className={className} />;
   return (
     <svg viewBox="0 0 32 32" width={size} height={size} className={"mark " + (className ?? "")} aria-hidden="true">
       <circle cx="16" cy="16" r="15.5" fill="var(--ink)" />
@@ -16,8 +18,19 @@ export function LogoMark({ size = 32, className }: { size?: number; className?: 
   );
 }
 
+/** rehber's mark: the corners rounded by a third of the size, the turned square an outline in the page's cream. */
+function RehberMark({ size, className }: { size: number; className?: string }) {
+  return (
+    <svg viewBox="0 0 32 32" width={size} height={size} className={"mark " + (className ?? "")} aria-hidden="true">
+      <rect width="32" height="32" rx="10.7" fill="var(--accent, #c8643b)" />
+      <rect x="11" y="11" width="10" height="10" rx="2.4" fill="none" stroke="var(--page, #f7f1e9)" strokeWidth="3.3" transform="rotate(45 16 16)" />
+    </svg>
+  );
+}
+
+/** The name beside the mark: Bygga's lower case wordmark, or the brand's own name. */
 export function Wordmark({ className }: { className?: string }) {
-  return <span className={"wordmark " + (className ?? "")}>bygga</span>;
+  return <span className={"wordmark " + (className ?? "")}>{BRAND === "rehber" ? BRAND_INFO.name : "bygga"}</span>;
 }
 
 export default function Logo({ href = "/", compact, size = 26 }: { href?: string; compact?: boolean; size?: number }) {

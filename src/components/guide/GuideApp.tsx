@@ -7,16 +7,16 @@ import { AnimatePresence, motion } from "motion/react";
 import type { Plan, ProductSpec, ToolId } from "@/lib/types";
 import { catalogSpec } from "@/lib/catalog";
 import { buildPlan } from "@/lib/plan";
-import { stepContents } from "@/lib/plan/contents";
+import { stepContents, type StepContents } from "@/lib/plan/contents";
 import { matchCatalog, specForKind } from "@/lib/search";
 import { KIND_LABELS, type Kind } from "@/lib/products";
 import { BREAK_MS, cacheSpec, cachedSpec, getPref, isBuilt, loadProgress, saveProgress, setPref, uncacheSpec, type Phase, type Progress } from "@/lib/store";
 import StageView, { type StageHandle } from "../StageView";
 import type { StageMode } from "@/engine/stage";
-import { LogoMark } from "../Logo";
+import { LogoMark, Wordmark } from "../Logo";
 import { HwArt } from "../art/Hardware";
 import { SinkCheck } from "../art/SinkCheck";
-import { Figure } from "../art/Figure";
+import { Helper } from "../art/Helper";
 import { ICheck, IGrid, IHelp, IMic, IPause, IPlay, IReplay, IRotate, IScan, ISound, ISoundOff, ISparkle } from "../art/Icons";
 import CoverPanel from "./CoverPanel";
 import ToolsPanel from "./ToolsPanel";
@@ -41,9 +41,14 @@ import { decodeSpec } from "@/lib/scan/share";
 import { track } from "@vercel/analytics";
 import { SCAN_ENABLED } from "@/lib/site";
 import { LOCALE, lower, manualSearchUrl, t, tOr, upper } from "@/lib/i18n";
+import { BRAND, BRAND_INFO, displayName } from "@/lib/brand";
 
 /** The spoken lines are English recordings, so the voice is offered only in English for now. */
 const VOICE = LOCALE === "en";
+/** Whether the guide links out to the rest of the site; rehber's guides keep to themselves. */
+const EXITS = BRAND_INFO.exits;
+/** rehber's stage corner: a badge with the number and a short muted line beside it, instead of the big numeral. */
+const BADGE = BRAND === "rehber";
 
 type Via = "catalog" | "ai" | "guess" | "scan";
 
@@ -143,7 +148,7 @@ export default function GuideApp({ slug, query, step, kind }: { slug: string; qu
       {askKey !== null && (
         <KeyModal
           why="draft"
-          name={(spec?.name ?? q.split(" ")[0]).toUpperCase()}
+          name={displayName((spec?.name ?? q.split(" ")[0]).toUpperCase())}
           trouble={askKey || null}
           onClose={() => setAskKey(null)}
           onSaved={() => {
@@ -159,25 +164,29 @@ export default function GuideApp({ slug, query, step, kind }: { slug: string; qu
   if (status === "scangone")
     return (
       <Shell title={t("guide.scannedTitle")}>
-        <div className="notfound">
-          <Figure pose="think" bubble="?" size={120} />
-          <h1>{t("scanGone.title")}</h1>
-          <p className="sub">{SCAN_ENABLED ? t("scanGone.bodyScan") : t("scanGone.body")}</p>
-          <Link href={SCAN_ENABLED ? "/scan" : "/"} className="btn primary">
-            {SCAN_ENABLED ? t("scanGone.scan") : t("scanGone.search")}
-          </Link>
-        </div>
+        {EXITS ? (
+          <div className="notfound">
+            <Helper pose="think" bubble="?" size={120} />
+            <h1>{t("scanGone.title")}</h1>
+            <p className="sub">{SCAN_ENABLED ? t("scanGone.bodyScan") : t("scanGone.body")}</p>
+            <Link href={SCAN_ENABLED ? "/scan" : "/"} className="btn primary">
+              {SCAN_ENABLED ? t("scanGone.scan") : t("scanGone.search")}
+            </Link>
+          </div>
+        ) : (
+          <NoGuide />
+        )}
       </Shell>
     );
   if (status === "loading")
     return (
-      <Shell title={isScan ? t("guide.scannedTitle") : upper(q)}>
+      <Shell title={isScan ? t("guide.scannedTitle") : displayName(upper(q))}>
         <Loader query={isScan ? t("loader.yourGuide") : q} ai={ai} />
       </Shell>
     );
   if (status === "notfound" || status === "error" || !plan)
     return (
-      <Shell title={upper(q)}>
+      <Shell title={displayName(upper(q))}>
         <NotFound
           query={q}
           slug={slug}
@@ -197,12 +206,12 @@ export default function GuideApp({ slug, query, step, kind }: { slug: string; qu
   const ownSteps =
     via === "guess" && !initial && mounted && !loadProgress(slug)
       ? !ai
-        ? { text: t("ownSteps.add", { name: plan.spec.name }), act: () => setAskKey("") }
+        ? { text: t("ownSteps.add", { name: displayName(plan.spec.name) }), act: () => setAskKey("") }
         : trouble === "key"
-          ? { text: t("ownSteps.key", { name: plan.spec.name }), act: () => setAskKey("key") }
+          ? { text: t("ownSteps.key", { name: displayName(plan.spec.name) }), act: () => setAskKey("key") }
           : trouble === "credits"
             ? { text: t("ownSteps.credits"), act: again }
-            : { text: t("ownSteps.retry", { name: plan.spec.name }), act: again }
+            : { text: t("ownSteps.retry", { name: displayName(plan.spec.name) }), act: again }
       : undefined;
   return (
     <>
@@ -212,13 +221,38 @@ export default function GuideApp({ slug, query, step, kind }: { slug: string; qu
   );
 }
 
+/** The top bar's mark: a way home in Bygga; in a brand with no exits, just the mark and the brand's name. */
+function HomeMark() {
+  if (!EXITS)
+    return (
+      <span className="home-btn">
+        <LogoMark size={34} />
+        <Wordmark />
+      </span>
+    );
+  return (
+    <Link href="/" className="home-btn" aria-label={t("guide.home")}>
+      <LogoMark size={34} />
+    </Link>
+  );
+}
+
+/** A guide that is not here, said plainly with nowhere else to go: rehber's buyers come from the QR code on the box. */
+function NoGuide() {
+  return (
+    <div className="notfound">
+      <Helper pose="think" bubble="?" size={120} />
+      <h1>{t("nf.title")}</h1>
+      <p className="sub">{t("nf.body")}</p>
+    </div>
+  );
+}
+
 function Shell({ title, children }: { title: string; children: React.ReactNode }) {
   return (
     <div className="guide shell">
       <header className="topbar">
-        <Link href="/" className="home-btn" aria-label={t("guide.home")}>
-          <LogoMark size={34} />
-        </Link>
+        <HomeMark />
         <div className="tb-title">
           <b>{title}</b>
         </div>
@@ -252,10 +286,23 @@ function NotFound({
   const name = upper(query.split(" ")[0]);
   const what = ikea ? lower(ikea) : undefined;
   const kinds = KIND_LABELS;
+  // with no exits, a failed fetch can only be tried again, and a product we don't know has no catalog to pick from
+  if (error && !EXITS)
+    return (
+      <div className="notfound">
+        <Helper pose="think" bubble="!" size={120} />
+        <h1>{t("err.title")}</h1>
+        <p className="sub">{t("notFound.errorBody")}</p>
+        <button className="btn primary" onClick={onRetry}>
+          {t("err.retry")}
+        </button>
+      </div>
+    );
+  if (!EXITS) return <NoGuide />;
   if (error)
     return (
       <div className="notfound">
-        <Figure pose="think" bubble="?" size={120} />
+        <Helper pose="think" bubble="?" size={120} />
         <h1>{t("notFound.error")}</h1>
         <p className="sub">{t("notFound.errorBody")}</p>
         <Link href="/" className="btn primary">
@@ -266,7 +313,7 @@ function NotFound({
   return (
     <div className="notfound wide">
       <div className="nf-head">
-        <Figure pose="think" bubble="?" size={96} />
+        <Helper pose="think" bubble="?" size={96} />
         <div>
           {what ? (
             <>
@@ -750,7 +797,7 @@ function Guide({ plan, slug, via, ai, startStep, onOwnSteps }: { plan: Plan; slu
   useEffect(() => {
     if (!voiceOn || phase !== "steps") return;
     return mediaSession(
-      { title: t("guide.mediaTitle", { n: step + 1, total: steps.length }), artist: plan.spec.name },
+      { title: t("guide.mediaTitle", { n: step + 1, total: steps.length }), artist: displayName(plan.spec.name) },
       {
         next: () => !live.current.asking && live.current.next(),
         back: () => !live.current.asking && live.current.back(),
@@ -762,13 +809,14 @@ function Guide({ plan, slug, via, ai, startStep, onOwnSteps }: { plan: Plan; slu
 
   useEffect(() => {
     const s = plan.spec;
+    const name = displayName(s.name);
     // the cover keeps the page's own title; steps and the end say where you are
     document.title =
       phase === "steps"
-        ? t("meta.stepTitle", { n: step + 1, total: steps.length, name: s.name })
+        ? t("meta.stepTitle", { n: step + 1, total: steps.length, name })
         : phase === "done"
-          ? t("meta.doneTitle", { name: s.name })
-          : t("meta.coverTitle", { name: s.name, variant: lower(s.variant) });
+          ? t("meta.doneTitle", { name })
+          : t("meta.coverTitle", { name, variant: lower(s.variant) });
   }, [phase, step, steps.length, plan.spec]);
 
   const mode: StageMode = useMemo(() => {
@@ -790,11 +838,9 @@ function Guide({ plan, slug, via, ai, startStep, onOwnSteps }: { plan: Plan; slu
   return (
     <div className="guide" data-phase={phase} data-voice={voiceOn ? "on" : undefined}>
       <header className="topbar">
-        <Link href="/" className="home-btn" aria-label={t("guide.home")}>
-          <LogoMark size={34} />
-        </Link>
+        <HomeMark />
         <div className="tb-title">
-          <b>{plan.spec.name}</b>
+          <b>{displayName(plan.spec.name)}</b>
           <span>{plan.spec.variant}</span>
         </div>
         <Stepper phase={phase} step={step} total={steps.length} reached={reached} onJump={jump} notes={notes.length > 0} />
@@ -847,18 +893,36 @@ function Guide({ plan, slug, via, ai, startStep, onOwnSteps }: { plan: Plan; slu
           {phase === "steps" && cur && (
             <div className="corner" aria-hidden="true">
               <div className="num-wrap">
-                <AnimatePresence mode="popLayout" initial={false}>
-                  <motion.span
-                    key={step}
-                    className="big-n"
-                    initial={{ y: 46 * dir, opacity: 0 }}
-                    animate={{ y: 0, opacity: 1 }}
-                    exit={{ y: -46 * dir, opacity: 0 }}
-                    transition={{ type: "spring", stiffness: 420, damping: 34 }}
-                  >
-                    {step + 1}
-                  </motion.span>
-                </AnimatePresence>
+                {BADGE ? (
+                  <span className="step-badge">
+                    <AnimatePresence mode="popLayout" initial={false}>
+                      <motion.span
+                        key={step}
+                        className="step-badge-n"
+                        initial={{ y: 28 * dir, opacity: 0 }}
+                        animate={{ y: 0, opacity: 1 }}
+                        exit={{ y: -28 * dir, opacity: 0 }}
+                        transition={{ type: "spring", stiffness: 420, damping: 34 }}
+                      >
+                        {step + 1}
+                      </motion.span>
+                    </AnimatePresence>
+                  </span>
+                ) : (
+                  <AnimatePresence mode="popLayout" initial={false}>
+                    <motion.span
+                      key={step}
+                      className="big-n"
+                      initial={{ y: 46 * dir, opacity: 0 }}
+                      animate={{ y: 0, opacity: 1 }}
+                      exit={{ y: -46 * dir, opacity: 0 }}
+                      transition={{ type: "spring", stiffness: 420, damping: 34 }}
+                    >
+                      {step + 1}
+                    </motion.span>
+                  </AnimatePresence>
+                )}
+                {BADGE && <CornerOf total={steps.length} parts={contents?.parts ?? []} />}
                 {cur.repeat && cur.repeat > 1 && <span className="corner-repeat">{cur.repeat}&times;</span>}
               </div>
               {contents && contents.hardware.length > 0 && (
@@ -896,7 +960,7 @@ function Guide({ plan, slug, via, ai, startStep, onOwnSteps }: { plan: Plan; slu
           <AnimatePresence>
             {toast && (
               <motion.div key={toast.id} className="toast" initial={{ opacity: 0, y: 16, scale: 0.96 }} animate={{ opacity: 1, y: 0, scale: 1 }} exit={{ opacity: 0, y: -8 }} transition={{ type: "spring", stiffness: 420, damping: 30 }}>
-                <Figure pose="cheer" size={40} />
+                <Helper pose="cheer" size={40} />
                 <span>{toast.text}</span>
               </motion.div>
             )}
@@ -1055,7 +1119,7 @@ function Guide({ plan, slug, via, ai, startStep, onOwnSteps }: { plan: Plan; slu
 
       {phase === "done" && <Confetti />}
       <p className="sr-only" aria-live="polite">
-        {phase === "steps" ? t("guide.srStep", { n: step + 1, total: steps.length, title: cur?.title ?? "", detail: cur?.detail ?? "" }) : phase === "done" ? t("guide.srDone", { name: plan.spec.name }) : ""}
+        {phase === "steps" ? t("guide.srStep", { n: step + 1, total: steps.length, title: cur?.title ?? "", detail: cur?.detail ?? "" }) : phase === "done" ? t("guide.srDone", { name: displayName(plan.spec.name) }) : ""}
       </p>
 
       <AnimatePresence>
@@ -1149,6 +1213,25 @@ function toggle(s: Set<string>, id: string) {
   if (n.has(id)) n.delete(id);
   else n.add(id);
   return n;
+}
+
+/**
+ * The short muted line beside rehber's step badge: "/ 32", and under it the part the step brings in when it brings in
+ * one kind of part with a short name (the tinted one in the drawing). Several kinds, or none, leave the count alone.
+ */
+function CornerOf({ total, parts }: { total: number; parts: StepContents["parts"] }) {
+  const one = parts.length === 1 && parts[0].type.name.length <= 24 ? parts[0] : null;
+  return (
+    <span className="corner-of">
+      <b>{t("corner.of", { total })}</b>
+      {one && (
+        <span>
+          {one.count > 1 && <>{one.count}&times; </>}
+          {one.type.name}
+        </span>
+      )}
+    </span>
+  );
 }
 
 /** Where you are: Tools, Parts, Build, Done. Earlier phases can be revisited. */

@@ -1,1 +1,321 @@
 /* The warm theme (rehber): the top bar, stepper, step corner, toasts, stage controls and lost screens. Rules only under [data-brand="rehber"]. */
+
+/* ================= the top bar: our mark and name, then the product ================= */
+
+/* not a link in rehber: the mark and the name, with a hairline before the product's name */
+[data-brand="rehber"] .home-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 9px;
+  border-radius: 0;
+  color: var(--ink);
+}
+[data-brand="rehber"] .home-btn .mark,
+[data-brand="rehber"] .nf-brand .mark {
+  flex: 0 0 auto;
+}
+[data-brand="rehber"] .home-btn .wordmark,
+[data-brand="rehber"] .nf-brand .wordmark {
+  font-family: var(--display);
+  font-size: 20px;
+  font-weight: 900;
+  letter-spacing: -0.02em;
+  line-height: 1;
+  padding: 0 0 2px;
+  color: var(--ink);
+}
+[data-brand="rehber"] .topbar .home-btn {
+  padding-right: 15px;
+  box-shadow: inset -1px 0 0 var(--line-2);
+}
+[data-brand="rehber"] .tb-title b {
+  font-weight: 800;
+  letter-spacing: -0.015em;
+}
+[data-brand="rehber"] .icon-btn:not(.float):hover {
+  background: rgba(45, 34, 28, 0.06);
+}
+
+/* ================= the stepper: where you are, its progress line in the accent ================= */
+
+[data-brand="rehber"] .stp {
+  font-weight: 600;
+  color: var(--ink-3);
+}
+[data-brand="rehber"] .stp.done {
+  color: var(--ink-2);
+}
+[data-brand="rehber"] .stp.done:not(:disabled):hover {
+  color: var(--accent-text);
+}
+[data-brand="rehber"] .stp.now {
+  color: var(--ink);
+  font-weight: 800;
+}
+[data-brand="rehber"] .stp-n {
+  color: var(--accent-text);
+  font-weight: 800;
+}
+[data-brand="rehber"] .stp-line {
+  bottom: 2px;
+  height: 3px;
+  border-radius: 3px;
+  background: var(--line);
+}
+[data-brand="rehber"] .stp-line i {
+  background: var(--accent);
+  border-radius: 3px;
+}
+
+/* ================= the stage corner: the step badge and its muted line ================= */
+
+/* the badge row is as tall as the badge (stage.ts keeps the drawing clear of it); the fittings box keeps its height */
+[data-brand="rehber"] .num-wrap {
+  height: 56px;
+  align-items: center;
+  gap: 10px;
+}
+/* a rounded square, its radius a third of its size, the number in white */
+[data-brand="rehber"] .step-badge {
+  position: relative;
+  display: grid;
+  place-items: center;
+  flex: 0 0 auto;
+  min-width: 56px;
+  height: 56px;
+  padding: 0 8px;
+  border-radius: 19px;
+  background: var(--accent);
+  color: #fff;
+  overflow: hidden;
+  box-shadow: 0 8px 18px -10px rgba(166, 75, 38, 0.55);
+}
+[data-brand="rehber"] .step-badge-n {
+  display: block;
+  font-family: var(--display);
+  font-size: 29px;
+  font-weight: 900;
+  line-height: 1;
+  letter-spacing: -0.03em;
+  font-variant-numeric: tabular-nums;
+}
+/* on the stage's own ground, so it stays readable (and no edge line runs through it) where the wall reaches the corner */
+[data-brand="rehber"] .corner-of {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 0;
+  max-width: 190px;
+  margin-left: -6px;
+  padding: 3px 8px 4px;
+  border-radius: 10px;
+  background: var(--raised);
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1.25;
+  color: var(--ink-3);
+}
+[data-brand="rehber"] .corner-of b {
+  font-size: 15px;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+}
+[data-brand="rehber"] .corner-of span {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+/* a step done more than once: a dark pill at the end of the row, after the badge's line */
+[data-brand="rehber"] .num-wrap .corner-repeat {
+  position: static;
+  flex: 0 0 auto;
+  height: 32px;
+  padding: 0 11px;
+  background: var(--btn);
+  color: var(--on-btn);
+  font-size: 16px;
+  font-weight: 900;
+}
+[data-brand="rehber"] .hw-box {
+  background: var(--card);
+  box-shadow:
+    inset 0 0 0 1.5px var(--line-2),
+    0 6px 16px -12px rgba(45, 34, 28, 0.3);
+}
+[data-brand="rehber"] .hw-box-item b {
+  font-weight: 900;
+  color: var(--ink);
+}
+
+/* ================= over the drawing: the check stamp, toasts, stage controls ================= */
+
+[data-brand="rehber"] .stamp {
+  background: var(--accent);
+  color: #fff;
+  box-shadow: 0 12px 26px -12px rgba(166, 75, 38, 0.6);
+}
+[data-brand="rehber"] .toast {
+  padding: 0 22px 0 12px;
+  background: var(--card);
+  color: var(--ink);
+  font-weight: 700;
+  box-shadow:
+    0 0 0 1px var(--line),
+    0 14px 30px -16px rgba(45, 34, 28, 0.35);
+}
+[data-brand="rehber"] .icon-btn.float,
+[data-brand="rehber"] .pill-btn.float {
+  background: rgba(255, 255, 255, 0.94);
+  box-shadow: 0 0 0 1px var(--line-2);
+}
+[data-brand="rehber"] .icon-btn.float:hover,
+[data-brand="rehber"] .pill-btn.float:hover {
+  box-shadow: 0 0 0 1.5px var(--ink);
+}
+[data-brand="rehber"] .pill-btn {
+  font-weight: 700;
+}
+[data-brand="rehber"] .pill-btn.on,
+[data-brand="rehber"] .pill-btn.float.on {
+  background: var(--accent-text);
+  color: #fff;
+  box-shadow: none;
+}
+
+/* ================= lost screens: a guide or a page that is not here, an error ================= */
+
+[data-brand="rehber"] .notfound h1,
+[data-brand="rehber"] .nf-main h1 {
+  font-weight: 900;
+  letter-spacing: -0.02em;
+  color: var(--ink);
+}
+[data-brand="rehber"] .notfound .sub {
+  max-width: 28em;
+  margin: 0;
+  font-size: 17px;
+}
+[data-brand="rehber"] .nf-page {
+  min-height: 100dvh;
+  display: grid;
+  grid-template-rows: 68px minmax(0, 1fr);
+  background: var(--page);
+}
+[data-brand="rehber"] .nf-brand {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 0 16px;
+}
+[data-brand="rehber"] .nf-main {
+  display: grid;
+  justify-items: center;
+  align-content: center;
+  gap: 14px;
+  padding: 24px 20px 84px;
+  text-align: center;
+}
+[data-brand="rehber"] .nf-main h1 {
+  margin: 10px 0 0;
+  font-family: var(--display);
+  font-size: clamp(28px, 3.6vw, 40px);
+  line-height: 1.1;
+}
+[data-brand="rehber"] .nf-main p {
+  max-width: 28em;
+  margin: 0;
+  font-size: 17px;
+  line-height: 1.5;
+  color: var(--ink-2);
+  text-wrap: pretty;
+}
+[data-brand="rehber"] .nf-main .btn {
+  margin-top: 8px;
+}
+
+/* ================= phones ================= */
+
+@media (max-width: 900px) {
+  [data-brand="rehber"] .num-wrap {
+    height: 44px;
+    gap: 8px;
+  }
+  [data-brand="rehber"] .step-badge {
+    min-width: 44px;
+    height: 44px;
+    padding: 0 6px;
+    border-radius: 15px;
+  }
+  [data-brand="rehber"] .step-badge-n {
+    font-size: 23px;
+  }
+  [data-brand="rehber"] .corner-of {
+    max-width: 150px;
+    margin-left: -5px;
+    padding: 2px 7px 3px;
+    font-size: 12px;
+  }
+  [data-brand="rehber"] .corner-of b {
+    font-size: 13.5px;
+  }
+  [data-brand="rehber"] .num-wrap .corner-repeat {
+    height: 28px;
+    padding: 0 9px;
+    font-size: 14px;
+  }
+  [data-brand="rehber"] .nf-page {
+    grid-template-rows: 58px minmax(0, 1fr);
+  }
+  [data-brand="rehber"] .nf-brand {
+    padding: 0 10px;
+  }
+}
+
+/* the steps' top bar on a phone: the mark alone, so the stepper and both buttons fit; the lost screens keep the name */
+@media (max-width: 640px) {
+  [data-brand="rehber"] .guide.shell .home-btn .wordmark,
+  [data-brand="rehber"] .nf-brand .wordmark {
+    display: inline;
+  }
+  [data-brand="rehber"] .guide:not(.shell) .home-btn {
+    padding-right: 0;
+    box-shadow: none;
+  }
+  [data-brand="rehber"] .guide:not(.shell) .home-btn .wordmark {
+    display: none;
+  }
+}
+
+/*
+ * A 390 px phone with the notes screen in the stepper: the step count moves to the badge on the drawing (it says
+ * the same), Done gives up its room until it is reached when there are five items, and the stepper takes only the
+ * room left, so the feedback and help buttons always stay on screen (at worst the stepper's far end is cut).
+ */
+@media (max-width: 420px) {
+  [data-brand="rehber"] .guide:not(.shell) .topbar {
+    grid-template-columns: auto minmax(0, 1fr) auto;
+    gap: 6px;
+  }
+  [data-brand="rehber"] .stepper {
+    justify-self: stretch;
+    justify-content: safe center;
+    min-width: 0;
+    gap: 9px;
+    margin-right: 0;
+    overflow-x: clip;
+  }
+  [data-brand="rehber"] .stp {
+    font-size: 13px;
+  }
+  [data-brand="rehber"] .stp-n,
+  [data-brand="rehber"] .stp.next:last-child:nth-child(5) {
+    display: none;
+  }
+}
+
+/* the smallest phones on the done screen: the notes before step 1 (the first of five) give Done its room */
+@media (max-width: 380px) {
+  [data-brand="rehber"] .guide[data-phase="done"] .stp:first-child:nth-last-child(5) {
+    display: none;
+  }
+}
