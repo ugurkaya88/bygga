@@ -1,23 +1,16 @@
 import * as THREE from "three";
 import { LineMaterial } from "three/examples/jsm/lines/LineMaterial.js";
+import { PALETTE } from "./palette";
 
-export const INK = new THREE.Color("#141414");
-export const INK_OLD = new THREE.Color("#94918b");
-export const TINT_NEW = new THREE.Color("#fff3c4");
+// the drawing's colours come from the brand's palette (palette.ts), Bygga's exactly as they were
+export const INK = new THREE.Color(PALETTE.ink);
+export const INK_OLD = new THREE.Color(PALETTE.inkOld);
+export const TINT_NEW = new THREE.Color(PALETTE.tintNew);
 
-export const FACE: Record<string, THREE.Color> = {
-  board: new THREE.Color("#ffffff"),
-  fiber: new THREE.Color("#f5f1e8"),
-  wood: new THREE.Color("#fdfaf4"),
-  metal: new THREE.Color("#eceef0"),
-  soft: new THREE.Color("#f6f6f4"),
-  // a cool pale tint, so glass doors, shelves and mirrors read apart from the white boards
-  glass: new THREE.Color("#e9f1f4"),
-  hwMetal: new THREE.Color("#dfe1e3"),
-  hwWood: new THREE.Color("#f1e2c3"),
-  hwPlastic: new THREE.Color("#f4f4f2"),
-  wall: new THREE.Color("#f3f2ee"),
-};
+export const FACE: Record<string, THREE.Color> = Object.fromEntries(Object.entries(PALETTE.face).map(([k, v]) => [k, new THREE.Color(v)]));
+
+/** the flat shading steps of faces turned away from the light (the shader's uShade) */
+const SHADE = new THREE.Vector3(...PALETTE.shade);
 
 const faceVert = /* glsl */ `
 varying vec3 vN;
@@ -31,12 +24,13 @@ uniform vec3 uColor;
 uniform vec3 uTint;
 uniform float uTintAmt;
 uniform float uOpacity;
+uniform vec3 uShade;
 varying vec3 vN;
 void main() {
   vec3 n = normalize(vN);
   vec3 L = normalize(vec3(-0.35, 1.0, 0.55));
   float d = dot(n, L);
-  float shade = d > 0.72 ? 1.0 : (d > 0.18 ? 0.968 : (d > -0.2 ? 0.938 : 0.915));
+  float shade = d > 0.72 ? 1.0 : (d > 0.18 ? uShade.x : (d > -0.2 ? uShade.y : uShade.z));
   vec3 c = mix(uColor, uTint, uTintAmt) * shade;
   gl_FragColor = vec4(c, uOpacity);
 }`;
@@ -48,6 +42,7 @@ export function faceMaterial(color: THREE.Color) {
       uTint: { value: TINT_NEW.clone() },
       uTintAmt: { value: 0 },
       uOpacity: { value: 1 },
+      uShade: { value: SHADE.clone() },
     },
     vertexShader: faceVert,
     fragmentShader: faceFrag,
