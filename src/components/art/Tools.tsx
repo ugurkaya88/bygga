@@ -2,8 +2,11 @@ import type { ToolId } from "@/lib/types";
 import { t } from "@/lib/i18n";
 
 const S = { stroke: "var(--ink)", strokeWidth: 1.8, strokeLinecap: "round", strokeLinejoin: "round" } as const;
-const W = "#fff";
-const G = "#ecebe6";
+// Fills come from the theme (rehber/art.css); with no brand each falls back to Bygga's own colour.
+/** the white body of a tool */
+const W = "var(--art-paper, #fff)";
+/** its metal and grip parts */
+const G = "var(--art-tool-metal, #ecebe6)";
 const A = "var(--accent-soft)";
 
 /** Hand drawn tool illustrations in the same line style as the 3D stage. viewBox 0 0 96 96; strokes are in screen pixels, so lines weigh the same at any size. */

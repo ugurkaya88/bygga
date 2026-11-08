@@ -141,16 +141,16 @@ export function WarnIcon({ id, size = 36 }: { id: WarnId; size?: number }) {
     two: (
       <g {...s}>
         <rect x="5" y="6" width="30" height="4" rx="1" fill="var(--accent-soft)" />
-        <circle cx="12" cy="16" r="3.4" fill="#fff" />
-        <path d="M7 31v-6a5 5 0 0 1 10 0v6M9 20l-2-10M15 20l2-10" fill="#fff" />
-        <circle cx="28" cy="16" r="3.4" fill="#fff" />
-        <path d="M23 31v-6a5 5 0 0 1 10 0v6M25 20l-2-10M31 20l2-10" fill="#fff" />
+        <circle cx="12" cy="16" r="3.4" fill="var(--art-paper, #fff)" />
+        <path d="M7 31v-6a5 5 0 0 1 10 0v6M9 20l-2-10M15 20l2-10" fill="var(--art-paper, #fff)" />
+        <circle cx="28" cy="16" r="3.4" fill="var(--art-paper, #fff)" />
+        <path d="M23 31v-6a5 5 0 0 1 10 0v6M25 20l-2-10M31 20l2-10" fill="var(--art-paper, #fff)" />
       </g>
     ),
     loose: (
       <g {...s}>
-        <rect x="9" y="22" width="22" height="9" rx="1.5" fill="#f1efe9" />
-        <path d="M17 22V10h6v12" fill="#fff" />
+        <rect x="9" y="22" width="22" height="9" rx="1.5" fill="var(--art-board-2, #f1efe9)" />
+        <path d="M17 22V10h6v12" fill="var(--art-paper, #fff)" />
         <path d="M14 8h12" />
         <path d="M27.5 13.5a6 6 0 0 0-3-4.6" />
         <path d="M24.5 6.5l0 2.6 2.6.2" />
@@ -158,36 +158,36 @@ export function WarnIcon({ id, size = 36 }: { id: WarnId; size?: number }) {
     ),
     hand: (
       <g {...s}>
-        <path d="M13 31v-9l-3-3.5a1.8 1.8 0 0 1 2.6-2.4L15 18V8.5a1.8 1.8 0 0 1 3.6 0V15V7a1.8 1.8 0 0 1 3.6 0v8V8.5a1.8 1.8 0 0 1 3.6 0V16v-4.5a1.8 1.8 0 0 1 3.6 0V22c0 5-3 9-8 9z" fill="#fff" />
+        <path d="M13 31v-9l-3-3.5a1.8 1.8 0 0 1 2.6-2.4L15 18V8.5a1.8 1.8 0 0 1 3.6 0V15V7a1.8 1.8 0 0 1 3.6 0v8V8.5a1.8 1.8 0 0 1 3.6 0V16v-4.5a1.8 1.8 0 0 1 3.6 0V22c0 5-3 9-8 9z" fill="var(--art-paper, #fff)" />
       </g>
     ),
     wall: (
       <g {...s}>
         <path d="M6 4v32" />
         <path d="M6 8l-3 3M6 15l-3 3M6 22l-3 3M6 29l-3 3" strokeWidth={1.4} />
-        <rect x="16" y="10" width="17" height="25" rx="1.5" fill="#fff" />
+        <rect x="16" y="10" width="17" height="25" rx="1.5" fill="var(--art-paper, #fff)" />
         <path d="M6 11h7v5" fill="none" />
         <path d="M13 16h3" />
       </g>
     ),
     square: (
       <g {...s}>
-        <rect x="6" y="8" width="28" height="24" rx="1.5" fill="#fff" />
+        <rect x="6" y="8" width="28" height="24" rx="1.5" fill="var(--art-paper, #fff)" />
         <path d="M9 11l22 18M31 11L9 29" strokeDasharray="3 3" />
-        <circle cx="20" cy="20" r="4.5" fill="#fff" />
+        <circle cx="20" cy="20" r="4.5" fill="var(--art-paper, #fff)" />
         <path d="M18 19h4M18 21.2h4" strokeWidth={1.4} />
       </g>
     ),
     floor: (
       <g {...s}>
         <path d="M4 28l10-6h22l-10 6z" fill="var(--accent-soft)" />
-        <path d="M10 23V12h14v10" fill="#fff" />
+        <path d="M10 23V12h14v10" fill="var(--art-paper, #fff)" />
         <path d="M8 34l4-2.5M16 34l4-2.5M24 34l4-2.5" strokeWidth={1.4} />
       </g>
     ),
     face: (
       <g {...s}>
-        <rect x="6" y="9" width="28" height="22" rx="1.5" fill="#fff" />
+        <rect x="6" y="9" width="28" height="22" rx="1.5" fill="var(--art-paper, #fff)" />
         <circle cx="13" cy="15" r="1.8" />
         <circle cx="13" cy="25" r="1.8" />
         <circle cx="27" cy="15" r="1.8" />
@@ -197,16 +197,16 @@ export function WarnIcon({ id, size = 36 }: { id: WarnId; size?: number }) {
     ),
     sink: (
       <g {...s}>
-        <rect x="5" y="7" width="30" height="26" rx="1.5" fill="#fff" />
+        <rect x="5" y="7" width="30" height="26" rx="1.5" fill="var(--art-paper, #fff)" />
         <circle cx="20" cy="20" r="7.5" fill="var(--accent-soft)" />
-        <circle cx="20" cy="20" r="3" fill="#fff" />
+        <circle cx="20" cy="20" r="3" fill="var(--art-paper, #fff)" />
       </g>
     ),
     tip: (
       <g {...s}>
         <path d="M5 35h30" />
         <g transform="rotate(14 24 34)">
-          <rect x="15" y="6" width="16" height="28" rx="1.5" fill="#fff" />
+          <rect x="15" y="6" width="16" height="28" rx="1.5" fill="var(--art-paper, #fff)" />
           <path d="M15 15h16M15 24h16" />
         </g>
         <path d="M8 10l6 6M14 10l-6 6" strokeWidth={2.4} />
