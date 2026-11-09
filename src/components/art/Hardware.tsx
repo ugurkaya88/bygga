@@ -19,6 +19,8 @@ interface Drawn {
 
 const stroke = { stroke: "var(--ink)", strokeWidth: 1.5, vectorEffect: "non-scaling-stroke", strokeLinejoin: "round", strokeLinecap: "round" } as const;
 const fine = { stroke: "var(--ink)", strokeWidth: 0.9, vectorEffect: "non-scaling-stroke", opacity: 0.55, strokeLinecap: "round" } as const;
+/** the lines inside a busy drawing (a hole, a slot, a step in the metal): full ink, a little thinner than its outline */
+const inner = { ...stroke, strokeWidth: 1 } as const;
 
 function thread(x0: number, x1: number, r: number, pitch: number) {
   let d = `M${x0} ${-r}`;
@@ -34,6 +36,105 @@ function thread(x0: number, x1: number, r: number, pitch: number) {
     up = !up;
   }
   return d + " Z";
+}
+
+/* Isometric drawing, as the manuals draw a cup hinge and its plate: x runs right and down, z left and down, y up, in mm. */
+type P3 = [number, number, number];
+type P2 = [number, number];
+const iso = ([x, y, z]: P3): P2 => [(x - z) * 0.866, (x + z) * 0.5 - y];
+const path2 = (pts: P2[]) => pts.map(([u, v], i) => `${i ? "L" : "M"}${u.toFixed(2)} ${v.toFixed(2)}`).join(" ") + " Z";
+const isoPath = (pts: P3[]) => path2(pts.map(iso));
+const deg = (a: number) => (a * Math.PI) / 180;
+
+/** Points round a rounded rectangle lying flat at height y, x from x0 to x1 and z from z0 to z1, corner by corner. */
+function flatRect(x0: number, z0: number, x1: number, z1: number, r: number, y: number): P3[] {
+  const out: P3[] = [];
+  const corners: P3[] = [
+    [x1 - r, z1 - r, 0],
+    [x0 + r, z1 - r, 90],
+    [x0 + r, z0 + r, 180],
+    [x1 - r, z0 + r, 270],
+  ];
+  for (const [cx, cz, a0] of corners) for (let k = 0; k <= 4; k++) out.push([cx + r * Math.cos(deg(a0 + k * 22.5)), y, cz + r * Math.sin(deg(a0 + k * 22.5))]);
+  return out;
+}
+
+/** Points round a slot lying flat at height y: half circles of radius r, `half` either side of (cx, cz) along z. */
+function flatSlot(cx: number, cz: number, half: number, r: number, y: number): P3[] {
+  const out: P3[] = [];
+  for (const [zc, a0] of [
+    [cz + half, 0],
+    [cz - half, 180],
+  ])
+    for (let k = 0; k <= 8; k++) out.push([cx + r * Math.cos(deg(a0 + k * 22.5)), y, zc + r * Math.sin(deg(a0 + k * 22.5))]);
+  return out;
+}
+
+/** A flat circle's isometric ellipse. */
+const isoEllipse = (x: number, y: number, z: number, r: number) => {
+  const [cx, cy] = iso([x, y, z]);
+  return { cx, cy, rx: r * 1.2247, ry: r * 0.7071 };
+};
+
+/** A plate lying flat, `t` mm thick: its top face over the band of edge that shows below it (the outline convex on its near side). */
+function IsoSlab({ top, t }: { top: P3[]; t: number }) {
+  const q = top.map(iso);
+  let l = 0,
+    r = 0;
+  q.forEach(([u], i) => {
+    if (u < q[l][0]) l = i;
+    if (u > q[r][0]) r = i;
+  });
+  const chain = (step: number) => {
+    const c: P2[] = [];
+    for (let i = l; ; i = (i + step + q.length) % q.length) {
+      c.push(q[i]);
+      if (i === r) break;
+    }
+    return c;
+  };
+  const mean = (c: P2[]) => c.reduce((s, p) => s + p[1], 0) / c.length;
+  const [a, b] = [chain(1), chain(-1)];
+  const low = mean(a) > mean(b) ? a : b;
+  return (
+    <>
+      <path d={path2([...low.map(([u, v]): P2 => [u, v + t]), ...low.slice().reverse()])} fill={METAL} {...stroke} />
+      <path d={path2(q)} fill={METAL_LIT} {...stroke} />
+    </>
+  );
+}
+
+/** A cylinder standing up from y0 to y1 at (x, z): its side, then its top. */
+function IsoCyl({ x, z, r, y0, y1, top = METAL_LIT }: { x: number; z: number; r: number; y0: number; y1: number; top?: string }) {
+  const a = isoEllipse(x, y1, z, r),
+    b = isoEllipse(x, y0, z, r);
+  return (
+    <>
+      <path d={`M${a.cx - a.rx} ${a.cy} L${b.cx - b.rx} ${b.cy} A${b.rx} ${b.ry} 0 0 0 ${b.cx + b.rx} ${b.cy} L${a.cx + a.rx} ${a.cy} Z`} fill={METAL} {...stroke} />
+      <ellipse {...a} fill={top} {...stroke} />
+    </>
+  );
+}
+
+/** A pan-head screw standing on y at (x, z): the head with its cross. */
+function IsoPanHead({ x, y, z, r, h }: { x: number; y: number; z: number; r: number; h: number }) {
+  const k = r * 0.55;
+  return (
+    <>
+      <IsoCyl x={x} z={z} r={r} y0={y} y1={y + h} />
+      <path d={`${isoPath([[x - k, y + h, z], [x + k, y + h, z]])} ${isoPath([[x, y + h, z - k], [x, y + h, z + k]])}`} {...inner} />
+    </>
+  );
+}
+
+/** The box an isometric drawing takes, from points round its outline: Drawn's w and h, and the shift that centres it. */
+function isoFit(pts: P3[]) {
+  const q = pts.map(iso);
+  const u0 = Math.min(...q.map((p) => p[0])),
+    u1 = Math.max(...q.map((p) => p[0]));
+  const v0 = Math.min(...q.map((p) => p[1])),
+    v1 = Math.max(...q.map((p) => p[1]));
+  return { w: u1 - u0, h: v1 - v0, at: `translate(${(-u0).toFixed(2)} ${(-(v0 + v1) / 2).toFixed(2)})` };
 }
 
 function draw(kind: HwKind, len: number, dia: number): Drawn {
@@ -225,38 +326,96 @@ function draw(kind: HwKind, len: number, dia: number): Drawn {
           </g>
         ),
       };
-    case "hinge":
+    case "hinge": {
+      // a cup hinge as the manuals draw it (A12), opened out, at real size whatever len and dia say: the 35 mm cup
+      // with its rim, the screw flange across it with a countersunk hole 24 mm either side and a window for the
+      // knuckle, and the arm lying back from the cup with its adjusting screw and the keyhole for the plate's screw
+      const flange = flatRect(-31, 0, 31, 15, 5, 2.5);
+      flange.splice(15, 0, [-9, 2.5, 0], [-9, 2.5, 6], [9, 2.5, 6], [9, 2.5, 0]);
+      // the keyhole: a slot for the screw's shank opening into a round hole its head goes through
+      const j = Math.sqrt(4.4 ** 2 - 2.8 ** 2);
+      const keyhole: P3[] = [[2.8, 11, -49 + j], [2.8, 11, -38]];
+      for (let a = 0; a <= 180; a += 22.5) keyhole.push([2.8 * Math.cos(deg(a)), 11, -38 + 2.8 * Math.sin(deg(a))]);
+      keyhole.push([-2.8, 11, -49 + j]);
+      const a0 = (Math.atan2(j, -2.8) * 180) / Math.PI;
+      for (let a = a0; a <= 410.5; a += 20) keyhole.push([4.4 * Math.cos(deg(a)), 11, -49 + 4.4 * Math.sin(deg(a))]);
+      const fit = isoFit([...flange, ...flatRect(-8.6, -58, 8.6, -6, 3, 11), ...flatSlot(0, 0, 0, 19, 1), ...flatSlot(0, 0, 0, 17.5, -11.5)]);
       return {
-        w: 78,
-        h: 40,
+        w: fit.w,
+        h: fit.h,
         scalable: true,
         node: (
-          <g>
-            <rect x={28} y={-7} width={42} height={14} rx={3} fill={METAL} {...stroke} />
-            <rect x={66} y={-20} width={10} height={40} rx={2} fill={METAL_LIT} {...stroke} />
-            <circle cx={17.5} cy={0} r={17.5} fill={METAL} {...stroke} />
-            <circle cx={17.5} cy={0} r={12} fill={METAL_LIT} {...stroke} />
-            <circle cx={3} cy={-15} r={2} fill={PAPER} {...stroke} />
+          <g transform={fit.at}>
+            <IsoCyl x={0} z={0} r={17.5} y0={-11.5} y1={0} />
+            <ellipse {...isoEllipse(0, 0.6, 0, 19)} fill={METAL_LIT} {...stroke} />
+            <ellipse {...isoEllipse(0, 0.6, 0, 15.5)} fill={METAL} {...inner} />
+            {/* the arm: its side with the step down into the cup, its top, and its open end over the cup */}
+            <path d={isoPath([[8.6, 11, -6], [8.6, 11, -58], [8.6, 4, -58], [8.6, 4, -28], [8.6, 1.5, -25], [8.6, 1.5, -6]])} fill={METAL} {...stroke} />
+            <path d={isoPath(flatRect(-8.6, -58, 8.6, -6, 3, 11))} fill={METAL_LIT} {...stroke} />
+            <path d={isoPath(keyhole)} fill={PAPER} {...inner} />
+            <IsoPanHead x={0} y={11} z={-15} r={3.2} h={1.4} />
+            <path d={isoPath([[-8.6, 1.5, -6], [-8.6, 11, -6], [8.6, 11, -6], [8.6, 1.5, -6], [7.4, 1.5, -6], [7.4, 9.8, -6], [-7.4, 9.8, -6], [-7.4, 1.5, -6]])} fill={METAL} {...stroke} />
+            {/* the knuckle going down into the cup, seen through the flange's window */}
+            <path d={isoPath([[6, 7, -6], [6, 7, 5], [6, 0, 5], [6, 0, -6]])} fill={METAL} {...inner} />
+            <path d={isoPath([[-6, 7, 5], [6, 7, 5], [6, 0, 5], [-6, 0, 5]])} fill={METAL} {...inner} />
+            <path d={isoPath([[-6, 7, -6], [6, 7, -6], [6, 7, 5], [-6, 7, 5]])} fill={METAL_LIT} {...inner} />
+            <IsoSlab top={flange} t={2.5} />
+            {[-24, 24].map((x) => (
+              <g key={x}>
+                <ellipse {...isoEllipse(x, 2.5, 7.5, 3.6)} fill={METAL} {...fine} />
+                <ellipse {...isoEllipse(x, 2.5, 7.5, 2.2)} fill={PAPER} {...inner} />
+              </g>
+            ))}
           </g>
         ),
       };
-    case "hingePlate":
-      // seen from the front: screw wings across, the raised body the hinge clips onto, its adjusting screw
+    }
+    case "hingePlate": {
+      // a pressed-steel cross mounting plate as the manuals draw it (A13): the wings across with a countersunk slot in
+      // each raised pad, and the body the hinge arm slides onto, `len` high with a ledge down its side, two holes in
+      // its top and the screw that holds the arm in the middle; `dia` sets the wings' span
+      const h = Math.max(4, len),
+        x = Math.max(10, dia / 2 - 6),
+        l = Math.min(5, h / 2) + 0.5;
+      const pad = (sx: number) => (
+        <g key={sx}>
+          <IsoSlab top={flatRect(sx - 6.3, -6.3, sx + 6.3, 6.3, 2, 3)} t={2} />
+          <path d={isoPath(flatSlot(sx, 0, 2, 3.4, 3))} fill={METAL} {...fine} />
+          <path d={isoPath(flatSlot(sx, 0, 2, 2.1, 3))} fill={PAPER} {...inner} />
+        </g>
+      );
+      // the body's hat section, outside and in, as its near end shows it
+      const hat: P2[] = [[-7, 0], [-7, l], [-5.5, l], [-5.5, h], [5.5, h], [5.5, l], [7, l], [7, 0]];
+      const hollow: P2[] = [[-6, 0], [-6, l - 1], [-4.5, l - 1], [-4.5, h - 1], [4.5, h - 1], [4.5, l - 1], [6, l - 1], [6, 0]];
+      const strip = (a: P2, b: P2) => isoPath([[a[0], a[1], -22], [b[0], b[1], -22], [b[0], b[1], 22], [a[0], a[1], 22]]);
+      const fit = isoFit([...flatRect(-x - 7, -7, x + 7, 7, 2.5, 0), ...hat.flatMap(([u, v]): P3[] => [[u, v, -22], [u, v, 22]]), ...flatSlot(0, 0, 0, 4.2, h + 4.8)]);
       return {
-        w: 40,
-        h: 40,
+        w: fit.w,
+        h: fit.h,
         scalable: true,
         node: (
-          <g>
-            <rect x={0} y={-6} width={40} height={12} rx={4} fill={METAL} {...stroke} />
-            <rect x={13.5} y={-20} width={13} height={40} rx={3} fill={METAL} {...stroke} />
-            <circle cx={5.5} cy={0} r={2.2} fill={PAPER} {...stroke} />
-            <circle cx={34.5} cy={0} r={2.2} fill={PAPER} {...stroke} />
-            <circle cx={20} cy={8} r={3} fill={METAL} {...stroke} />
-            <path d="M18.2 8 H21.8 M20 6.2 V9.8" {...fine} />
+          <g transform={fit.at}>
+            <path d={isoPath(flatRect(-x - 7, -7, x + 7, 7, 2.5, 1))} fill={METAL_LIT} {...stroke} />
+            {pad(-x)}
+            <path d={strip([7, 0], [7, l])} fill={METAL} {...inner} />
+            <path d={strip([5.5, l], [7, l])} fill={METAL_LIT} {...inner} />
+            <path d={strip([5.5, l], [5.5, h])} fill={METAL} {...inner} />
+            <path d={strip([-5.5, h], [5.5, h])} fill={METAL_LIT} {...stroke} />
+            <path d={isoPath(hat.map(([u, v]): P3 => [u, v, 22]))} fill={METAL} {...stroke} />
+            <path d={isoPath(hollow.map(([u, v]): P3 => [u, v, 22]))} fill={PAPER} {...inner} />
+            {[-11, 11].map((z) => (
+              <g key={z}>
+                <ellipse {...isoEllipse(0, h, z, 3)} fill={METAL} {...fine} />
+                <ellipse {...isoEllipse(0, h, z, 1.8)} fill={PAPER} {...inner} />
+              </g>
+            ))}
+            {pad(x)}
+            <IsoCyl x={0} z={0} r={2.4} y0={h} y1={h + 2.4} top={METAL} />
+            <IsoPanHead x={0} y={h + 2.4} z={0} r={4.2} h={2.4} />
           </g>
         ),
       };
+    }
     case "cornerFoot":
       // from below: a right-angled plastic foot with its three screw holes
       return {

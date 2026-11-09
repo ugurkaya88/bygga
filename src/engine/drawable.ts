@@ -187,6 +187,105 @@ const FILM = new THREE.Color(PALETTE.film); // the paper backing on an adhesive 
 
 const cyl = (r: number, h: number, seg = 18) => () => new THREE.CylinderGeometry(r, r, h, seg);
 
+type Pt = [number, number];
+type Axis = "x" | "y" | "z";
+const AXIS: Record<Axis, THREE.Vector3> = { x: new THREE.Vector3(1, 0, 0), y: new THREE.Vector3(0, 1, 0), z: new THREE.Vector3(0, 0, 1) };
+
+/** A closed outline through `pts`, each corner rounded off by its radius in `r` (one number for all, 0 for sharp). */
+function rounded<T extends THREE.Path>(into: T, pts: Pt[], r: number | number[]) {
+  const n = pts.length;
+  pts.forEach((p, i) => {
+    const rr = typeof r === "number" ? r : r[i];
+    const a = pts[(i + n - 1) % n], b = pts[(i + 1) % n];
+    const la = Math.hypot(a[0] - p[0], a[1] - p[1]), lb = Math.hypot(b[0] - p[0], b[1] - p[1]);
+    const sx = p[0] + ((a[0] - p[0]) / la) * rr, sy = p[1] + ((a[1] - p[1]) / la) * rr;
+    if (i === 0) into.moveTo(sx, sy);
+    else into.lineTo(sx, sy);
+    if (rr > 0) into.quadraticCurveTo(p[0], p[1], p[0] + ((b[0] - p[0]) / lb) * rr, p[1] + ((b[1] - p[1]) / lb) * rr);
+  });
+  into.closePath();
+  return into;
+}
+
+/** A slot for a screw: two half circles of radius `r`, `half` either side of (cx, cy) along the outline's y (or x). */
+function slotPath(cx: number, cy: number, half: number, r: number, alongY = true) {
+  const p = new THREE.Path();
+  if (alongY) {
+    p.absarc(cx, cy - half, r, Math.PI, 2 * Math.PI, false);
+    p.absarc(cx, cy + half, r, 0, Math.PI, false);
+  } else {
+    p.absarc(cx + half, cy, r, -Math.PI / 2, Math.PI / 2, false);
+    p.absarc(cx - half, cy, r, Math.PI / 2, 1.5 * Math.PI, false);
+  }
+  p.closePath();
+  return p;
+}
+
+/** A bent strip of sheet steel seen end on: the open polyline `pts` drawn `t` mm thick, as a closed outline. */
+function sheet(pts: Pt[], t: number) {
+  const normal = (p: Pt, q: Pt): Pt => {
+    const l = Math.hypot(q[0] - p[0], q[1] - p[1]);
+    return [-(q[1] - p[1]) / l, (q[0] - p[0]) / l];
+  };
+  const side = (s: number) =>
+    pts.map((p, i): Pt => {
+      const n0 = i > 0 ? normal(pts[i - 1], p) : normal(p, pts[i + 1]);
+      const n1 = i < pts.length - 1 ? normal(p, pts[i + 1]) : n0;
+      // the mitre at a bend: along the two normals' mean, long enough to stay t/2 off both faces
+      const mx = n0[0] + n1[0], my = n0[1] + n1[1], ml = Math.hypot(mx, my);
+      const k = t / 2 / ((mx / ml) * n0[0] + (my / ml) * n0[1]);
+      return [p[0] + (s * mx * k) / ml, p[1] + (s * my * k) / ml];
+    });
+  return new THREE.Shape([...side(1), ...side(-1).reverse()].map(([x, y]) => new THREE.Vector2(x, y)));
+}
+
+/**
+ * A flat outline cut from sheet: `shape` extruded `depth` mm, its x running along `u`, its y along `v` and the
+ * depth along the third axis from `from` up.
+ */
+function slab(shape: THREE.Shape, depth: number, u: Axis, v: Axis, from = 0, curveSegments = 12) {
+  const g = new THREE.ExtrudeGeometry(shape, { depth, bevelEnabled: false, curveSegments });
+  const w = (["x", "y", "z"] as Axis[]).find((a) => a !== u && a !== v)!;
+  const W = AXIS[w].clone();
+  // keep the turn a rotation, not a mirror, so the faces still face out
+  const flip = AXIS[u].clone().cross(AXIS[v]).dot(W) < 0;
+  if (flip) W.negate();
+  g.applyMatrix4(new THREE.Matrix4().makeBasis(AXIS[u], AXIS[v], W));
+  g.translate(...(AXIS[w].clone().multiplyScalar(from + (flip ? depth : 0)).toArray() as THREE.Vector3Tuple));
+  return g;
+}
+
+/** A pan-head screw's head with its cross, standing on y = 0 of `parent` (a group the caller places and turns). */
+function panHead(d: Drawable, r: number, h: number, parent: THREE.Object3D) {
+  const m = FACE.hwMetal;
+  addSolid(d, `ph:${r}:${h}`, () => new THREE.CylinderGeometry(r * 0.84, r, h, 24), m, { hull: "cyl", position: [0, h / 2, 0], parent });
+  addSolid(d, `ph:x:${r}`, () => new THREE.BoxGeometry(r * 1.2, 0.4, 0.55), m, { position: [0, h + 0.1, 0], parent });
+  addSolid(d, `ph:z:${r}`, () => new THREE.BoxGeometry(0.55, 0.4, r * 1.2), m, { position: [0, h + 0.1, 0], parent });
+}
+
+const inkCache = new Map<string, LineSegmentsGeometry>();
+/** Thin lines drawn on a fitting's face, as the manuals draw a countersunk hole's rim or a keyhole: closed loops. */
+function inkLoops(d: Drawable, key: string, make: () => THREE.Vector3[][]) {
+  let g = inkCache.get(key);
+  if (!g) {
+    const pts: number[] = [];
+    for (const l of make())
+      l.forEach((a, i) => {
+        const b = l[(i + 1) % l.length];
+        pts.push(a.x, a.y, a.z, b.x, b.y, b.z);
+      });
+    g = new LineSegmentsGeometry().setPositions(pts);
+    inkCache.set(key, g);
+  }
+  const lm = lineMaterial(1);
+  d.root.add(new LineSegments2(g, lm));
+  d.thin.push(lm);
+}
+
+/** A circle of radius r round (x, z) in the plane y, as points for inkLoops. */
+const ring = (x: number, y: number, z: number, r: number, n = 24) =>
+  Array.from({ length: n }, (_, i) => new THREE.Vector3(x + r * Math.cos((i / n) * Math.PI * 2), y, z + r * Math.sin((i / n) * Math.PI * 2)));
+
 /**
  * Hardware is modelled along +Y with the origin on the surface it goes into.
  * Everything below y = 0 ends up inside the panel.
@@ -261,16 +360,58 @@ export function hwDrawable(kind: HwKind, len: number, dia: number) {
       for (const x of [-len / 2, len / 2]) addSolid(d, "hd:post", cyl(5, 26, 12), metal, { hull: "cyl", position: [x, 13, 0] });
       addSolid(d, `hd:bar:${len}`, () => new THREE.CylinderGeometry(6, 6, len + 24, 14).rotateZ(Math.PI / 2), metal, { hull: "radial", position: [0, 30, 0] });
       break;
-    case "hinge":
-      // a cup hinge as it hangs: the cup sunk in the door, screw wings along the edge on the side away from it,
-      // the arm standing into the cabinet along the side panel's inner face (local -x is the hinged edge)
-      addSolid(d, "hg:cup", cyl(17.5, 12, 24), metal, { hull: "cyl", position: [0, -6, 0] });
-      addSolid(d, "hg:rim", cyl(18.5, 1.2, 24), metal, { hull: "cyl", position: [0, 0.6, 0] });
-      addSolid(d, "hg:flange", () => new THREE.BoxGeometry(12, 1.6, 52), metal, { position: [6, 0.8, 0] });
-      addSolid(d, "hg:arm", () => new THREE.BoxGeometry(9, 42, 16), metal, { position: [1.5, 21, 0] });
-      for (const y of [16, 30]) addSolid(d, "hg:adj", cyl(3, 1.2, 14), metal, { hull: "cyl", position: [6.6, y, 0], rotation: [0, 0, Math.PI / 2] });
-      addSolid(d, "hg:plate", () => new THREE.BoxGeometry(3, 16, 38), metal, { position: [-2, 36, 0] });
+    case "hinge": {
+      // a cup hinge as it hangs with the door shut (local -x is the hinged edge, y = 0 the door's inner face, z
+      // along the edge), drawn after the manuals' A12 at real size, whatever len and dia say:
+      // - the 35 mm cup sunk in the door, its rim on the face;
+      // - the screw flange over it on the side away from the edge, with a countersunk hole 24 mm either side of the
+      //   cup, a short slot 6 to 9 mm off its centre (the guides place the screws at either);
+      // - the arm standing into the cabinet along the side panel: a pressed channel, deeper over the cup where the
+      //   knuckle pin is, the adjusting screw on top, and the keyhole 37 mm in that the plate's screw holds.
+      // The arm's inside top (x = 6) rests on a 10 mm plate when the cup is 4 mm in from the panel's inner face (a
+      // cup 22 mm from the edge of a door over an 18 mm side); with the cup further in, its sides straddle the
+      // plate's body.
+      addSolid(d, "hg:cup", cyl(17.5, 11.9, 32), metal, { hull: "cyl", position: [0, -5.55, 0] });
+      addSolid(
+        d,
+        "hg:rim",
+        () => {
+          const s = new THREE.Shape().absarc(0, 0, 19, 0, Math.PI * 2, false);
+          s.holes.push(new THREE.Path().absarc(0, 0, 15.5, 0, Math.PI * 2, true));
+          return slab(s, 1.2, "x", "z", 0, 24);
+        },
+        metal,
+      );
+      // the flange: a plate with the cup's window cut on the arm's side, and a raised face on it round the holes'
+      // countersunk mouths
+      const flange = (e: number, hole: number) => {
+        const s = rounded(new THREE.Shape(), [[e, -31 + e], [15 - e, -31 + e], [15 - e, 31 - e], [e, 31 - e], [e, 9 + e], [6 + e, 9 + e], [6 + e, -9 - e], [e, -9 - e]], [5 - e, 5 - e, 5 - e, 5 - e, 1, 1, 1, 1]);
+        s.holes.push(slotPath(7.5, -24, 1.5, hole, false), slotPath(7.5, 24, 1.5, hole, false));
+        return s;
+      };
+      addSolid(d, "hg:flange", () => slab(flange(0, 2.3), 1.6, "x", "z", 0), metal);
+      addSolid(d, "hg:face", () => slab(flange(0.7, 3.6), 1.4, "x", "z", 1.6), metal);
+      // the knuckle going down into the cup, the arm's front part over it with the pin, and the arm
+      addSolid(d, "hg:knuckle", () => new THREE.BoxGeometry(7, 6, 13), metal, { position: [1.5, -1, 0] });
+      addSolid(d, "hg:front", () => slab(sheet([[-8, -3], [-8, 6.6], [8, 6.6], [8, -3]], 1.2), 21, "z", "x", 1), metal);
+      addSolid(d, "hg:arm", () => slab(sheet([[-8, -0.4], [-8, 6.6], [8, 6.6], [8, -0.4]], 1.2), 28, "z", "x", 22), metal);
+      addSolid(d, "hg:pin", () => new THREE.CylinderGeometry(2.2, 2.2, 18.4, 16).rotateX(Math.PI / 2), metal, { hull: "radial", position: [1.5, 4, 0] });
+      const adj = new THREE.Group();
+      adj.position.set(7.2, 14, 0);
+      adj.rotation.z = -Math.PI / 2;
+      d.root.add(adj);
+      panHead(d, 3.2, 1.4, adj);
+      inkLoops(d, "hg:keyhole", () => {
+        // a slot along the arm for the plate screw's shank, opening into a round hole its head goes through
+        const a = Math.atan2(2.8, 39.1 - 42.5);
+        const k = new THREE.Path().moveTo(39.1, -2.8).lineTo(33.6, -2.8);
+        k.absarc(33.6, 0, 2.8, -Math.PI / 2, Math.PI / 2, true);
+        k.lineTo(39.1, 2.8);
+        k.absarc(42.5, 0, 4.4, a, -a, true);
+        return [k.getPoints(10).map((p) => new THREE.Vector3(7.5, p.x, p.y))];
+      });
       break;
+    }
     case "glide":
       addSolid(d, "glide", cyl(10, 4, 18), plastic, { hull: "cyl", position: [0, 2, 0] });
       break;
@@ -314,12 +455,30 @@ export function hwDrawable(kind: HwKind, len: number, dia: number) {
       for (const z of [-half + 2.2, half - 2.2]) addSolid(d, `gs:end:${rib}`, () => new THREE.BoxGeometry(6, rib, 2.4), plastic, { position: [0, y, z] });
       break;
     }
-    case "hingePlate":
-      // a clip-on mounting plate seen from the front: screw wings across, the raised body the hinge arm clips onto along z
-      addSolid(d, `hp:wing:${dia}`, () => new THREE.BoxGeometry(dia, 2, 12), metal, { position: [0, 1, 0] });
-      addSolid(d, `hp:body:${len}`, () => new THREE.BoxGeometry(13, len - 1.2, 36), metal, { position: [0, (len - 1.2) / 2, 0] });
-      addSolid(d, "hp:screw", cyl(3, 1.2, 14), metal, { hull: "cyl", position: [0, len - 0.6, 6] });
+    case "hingePlate": {
+      // a pressed-steel cross mounting plate, after the manuals' A13 (local y out of the panel): the wings across along
+      // x, a raised pad on each with a countersunk slot along z where its screw goes in (14 mm either side of the
+      // middle on the usual 40 mm plate), and the body the hinge arm slides onto along z, `len` high with a ledge
+      // down each side, two countersunk holes in its top and the screw that holds the arm in the middle
+      const h = Math.max(4, len);
+      const x = Math.max(10, dia / 2 - 6);
+      const slots = (s: THREE.Shape, at: number[], r: number) => {
+        for (const cx of at) s.holes.push(slotPath(cx, 0, 2, r));
+        return s;
+      };
+      addSolid(d, `hp:base:${x}`, () => slab(slots(rounded(new THREE.Shape(), [[-x - 7, -7], [x + 7, -7], [x + 7, 7], [-x - 7, 7]], 2.5), [-x, x], 2.1), 1, "x", "z", 0), metal);
+      for (const sx of [-x, x])
+        addSolid(d, "hp:pad", () => slab(slots(rounded(new THREE.Shape(), [[-6.3, -6.3], [6.3, -6.3], [6.3, 6.3], [-6.3, 6.3]], 2), [0], 3.4), 2, "x", "z", 1), metal, { position: [sx, 0, 0] });
+      const ledge = Math.min(5, h / 2);
+      addSolid(d, `hp:body:${h}`, () => slab(sheet([[-6.5, 0], [-6.5, ledge], [-5, ledge], [-5, h - 0.5], [5, h - 0.5], [5, ledge], [6.5, ledge], [6.5, 0]], 1), 44, "x", "y", -22), metal);
+      inkLoops(d, `hp:holes:${h}`, () => [-11, 11].flatMap((z) => [ring(0, h + 0.3, z, 1.8), ring(0, h + 0.3, z, 3)]));
+      addSolid(d, "hp:shank", cyl(2.4, 2.4, 14), metal, { hull: "cyl", position: [0, h + 1.2, 0] });
+      const head = new THREE.Group();
+      head.position.set(0, h + 2.4, 0);
+      d.root.add(head);
+      panHead(d, 4.2, 2.4, head);
       break;
+    }
     case "cornerFoot": {
       // a right-angled plastic corner foot under a board: the right angle at local -x -z, centred on its centroid
       const a = dia;
