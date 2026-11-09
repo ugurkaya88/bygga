@@ -899,6 +899,19 @@
   width: 150px;
   height: auto;
 }
+/* the manual's screw length check under the fittings box (stage.ts keeps the drawing clear of it) */
+.length-box {
+  align-self: flex-start;
+  padding: 7px 10px;
+  background: #fff;
+  border-radius: 16px;
+  box-shadow: inset 0 0 0 1.8px var(--ink);
+}
+.length-box svg {
+  display: block;
+  width: auto;
+  height: 110px;
+}
 .stamp {
   position: absolute;
   left: 50%;
@@ -3106,6 +3119,9 @@ button.pic:disabled {
   }
   .sink-box svg {
     width: 112px;
+  }
+  .length-box svg {
+    height: 82px;
   }
   .stage-ctl {
     left: 10px;

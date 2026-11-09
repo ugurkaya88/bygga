@@ -16,6 +16,7 @@ import type { StageMode } from "@/engine/stage";
 import { LogoMark, Wordmark } from "../Logo";
 import { HwArt } from "../art/Hardware";
 import { SinkCheck } from "../art/SinkCheck";
+import { ScrewCheck, checkScrews } from "../art/ScrewCheck";
 import { Helper } from "../art/Helper";
 import { ICheck, IGrid, IHelp, IMic, IPause, IPlay, IReplay, IRotate, IScan, ISound, ISoundOff, ISparkle } from "../art/Icons";
 import CoverPanel from "./CoverPanel";
@@ -938,6 +939,11 @@ function Guide({ plan, slug, via, ai, startStep, onOwnSteps }: { plan: Plan; slu
               {cur.warnings.includes("sink") && (
                 <motion.div key={"sink" + step} className="sink-box" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.25, duration: 0.35 }}>
                   <SinkCheck width={150} />
+                </motion.div>
+              )}
+              {cur.warnings.includes("length") && contents && checkScrews(plan, contents.hardware.map((h) => h.type)).length > 0 && (
+                <motion.div key={"length" + step} className="length-box" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.25, duration: 0.35 }}>
+                  <ScrewCheck screws={checkScrews(plan, contents.hardware.map((h) => h.type))} />
                 </motion.div>
               )}
             </div>

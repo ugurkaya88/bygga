@@ -362,7 +362,8 @@ export function buildCustom(b: PlanBuilder, s: ProductSpec) {
         shift: st.shift,
         marks: st.marks,
         sub: st.sub?.filter((x) => typeof x === "string" && x.trim()).slice(0, 8),
-        warnings: [...warnings].slice(0, 3),
+        // the manual's check cards are drawings beside the step, outside the cap of three
+        warnings: [...[...warnings].filter((w) => w !== "sink" && w !== "length").slice(0, 3), ...[...warnings].filter((w) => w === "sink" || w === "length")],
       },
       () => {
         const targets = new Set(fixes.flatMap((f) => f.to ?? []));

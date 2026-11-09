@@ -213,12 +213,16 @@ export function hwDrawable(kind: HwKind, len: number, dia: number) {
       break;
     }
     case "screw": {
+      // countersunk, as the manuals draw chipboard screws: a thin rim just proud of the surface, a cone under it
+      // that sinks into the board, then the shank
       const hr = Math.max(dia, 3.2);
+      const cone = hr - r * 0.92;
       addSolid(d, `sc:shank:${len}:${dia}`, cyl(r * 0.92, len - 2, 10), metal, { hull: "cyl", position: [0, -(len - 2) / 2 - 2, 0] });
       addSolid(d, `sc:tip:${dia}`, () => new THREE.ConeGeometry(r * 0.92, 2.6, 10), metal, { position: [0, -len - 0.7, 0], rotation: [Math.PI, 0, 0], edges: false });
-      addSolid(d, `sc:head:${dia}`, cyl(hr, 1.9, 18), metal, { hull: "cyl", position: [0, 0.95, 0] });
-      addSolid(d, `sc:x1:${dia}`, () => new THREE.BoxGeometry(hr * 1.2, 0.4, 0.5), metal, { position: [0, 2.0, 0] });
-      addSolid(d, `sc:x2:${dia}`, () => new THREE.BoxGeometry(0.5, 0.4, hr * 1.2), metal, { position: [0, 2.0, 0] });
+      addSolid(d, `sc:rim:${dia}`, cyl(hr, 0.6, 18), metal, { hull: "cyl", position: [0, 0.3, 0] });
+      addSolid(d, `sc:cone:${dia}`, () => new THREE.CylinderGeometry(hr, r * 0.92, cone, 18), metal, { hull: "cyl", position: [0, -cone / 2, 0] });
+      addSolid(d, `sc:x1:${dia}`, () => new THREE.BoxGeometry(hr * 1.2, 0.4, 0.5), metal, { position: [0, 0.7, 0] });
+      addSolid(d, `sc:x2:${dia}`, () => new THREE.BoxGeometry(0.5, 0.4, hr * 1.2), metal, { position: [0, 0.7, 0] });
       break;
     }
     case "nail":

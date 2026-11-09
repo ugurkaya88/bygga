@@ -220,6 +220,8 @@ export class Stage {
   private cornerItems = 0;
   /** the step shows the manual's countersunk check under the fittings box (GuideApp .sink-box) */
   private sinkBox = false;
+  /** the screw length check's card under the fittings box, in px (desktop): 0 when the step has none */
+  private lengthBox = { w: 0, h: 0 };
   margins?: { t: number; r: number; b: number; l: number };
 
   constructor(el: HTMLElement, opts: StageOptions = {}) {
@@ -609,6 +611,7 @@ export class Stage {
     this.frameLocal = [];
     this.cornerItems = 0;
     this.sinkBox = false;
+    this.lengthBox = { w: 0, h: 0 };
     this.stepXf.clear();
     this.shiftFrom.set(0, 0, 0);
     this.shiftTo.set(0, 0, 0);
@@ -657,6 +660,18 @@ export class Stage {
       this.stepEnd = Math.max(end, 0.6);
       this.cornerItems = Math.min(4, new Set(this.hws.filter((h) => h.item.step === s && !h.item.preset).map((h) => h.item.ref)).size);
       this.sinkBox = step.warnings.includes("sink");
+      this.lengthBox = { w: 0, h: 0 };
+      if (step.warnings.includes("length") && this.plan) {
+        // as ScrewCheck draws it: one 48-unit column per screw size, the longest screw 2 units per mm, 27 units
+        // of head room and label; 110 px tall plus the card's padding
+        const sizes = new Map<string, number>();
+        for (const h of this.plan.hardware) if (h.kind === "screw" && !h.notIncluded) sizes.set(`${h.dia}x${h.len}`, h.len);
+        const n = Math.min(5, sizes.size);
+        if (n > 1) {
+          const tall = Math.max(...sizes.values()) * 2 + 27;
+          this.lengthBox = { w: (110 * n * 48) / tall + 20, h: 110 + 14 };
+        }
+      }
       if (first && this.callout) {
         const loc = new THREE.Vector3(...first.item.pos);
         const dir = new THREE.Vector3(...first.item.dir).normalize();
@@ -1176,13 +1191,19 @@ export class Stage {
     };
     // the fittings box covers the top left: keep the drawing either below it or to its right
     const starts: [number, number][] = [[mL, mT]];
-    if (k === "step" && (this.cornerItems || this.sinkBox)) {
+    if (k === "step" && (this.cornerItems || this.sinkBox || this.lengthBox.h)) {
       // the step number alone is inside the top margin; the countersunk check sits under the fittings box
       let boxH = (this.cornerItems ? CORNER_H.fittings : CORNER_H.num)[mob ? 1 : 0];
       let boxW = this.cornerItems ? (mob ? 34 + this.cornerItems * 48 : 46 + this.cornerItems * 62) : 0;
       if (this.sinkBox) {
         boxH += mob ? 72 : 96;
         boxW = Math.max(boxW, mob ? 134 : 182);
+      }
+      if (this.lengthBox.h) {
+        // the card is 82 px tall on a phone instead of 110
+        const k = mob ? 82 / 110 : 1;
+        boxH += this.lengthBox.h * k + 8;
+        boxW = Math.max(boxW, this.lengthBox.w * k);
       }
       boxH += m.t;
       boxW += m.l;

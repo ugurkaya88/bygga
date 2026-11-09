@@ -72,18 +72,21 @@ function draw(kind: HwKind, len: number, dia: number): Drawn {
         ),
       };
     case "screw": {
+      // a countersunk chipboard screw, as the manuals draw it: a flat head with a thin rim, then a cone down to
+      // the shank; `len` runs from the head's face to the point
       const hr = Math.max(dia * 1.05, 3.4);
+      const neck = 0.5 + hr - r * 0.9;
       const ticks = [];
-      for (let x = 3.4; x < len - 3; x += 1.7) ticks.push(<path key={x} d={`M${x} ${-r * 0.9} L${x + 0.9} ${r * 0.9}`} {...fine} />);
+      for (let x = neck + 1.4; x < len - 3; x += 1.7) ticks.push(<path key={x} d={`M${x} ${-r * 0.9} L${x + 0.9} ${r * 0.9}`} {...fine} />);
       return {
         w: len + 2,
         h: hr * 2,
         scalable: true,
         node: (
           <g>
-            <path d={`M2 ${-r * 0.9} H${len - 1.5} L${len + 1.6} 0 L${len - 1.5} ${r * 0.9} H2 Z`} fill={METAL} {...stroke} />
+            <path d={`M${neck - 0.3} ${-r * 0.9} H${len - 1.5} L${len + 1.6} 0 L${len - 1.5} ${r * 0.9} H${neck - 0.3} Z`} fill={METAL} {...stroke} />
             {ticks}
-            <path d={`M2 ${-hr} C0.4 ${-hr} 0 ${-hr * 0.6} 0 0 C0 ${hr * 0.6} 0.4 ${hr} 2 ${hr} Z`} fill={METAL} {...stroke} />
+            <path d={`M0 ${-hr} H0.5 L${neck} ${-r * 0.9} V${r * 0.9} L0.5 ${hr} H0 Z`} fill={METAL} {...stroke} />
           </g>
         ),
       };

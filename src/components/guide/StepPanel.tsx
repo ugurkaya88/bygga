@@ -10,6 +10,7 @@ import { IArrowLeft, IArrowRight, ICheck, IClock, IClose, IMic, ISparkle, isSafe
 import { num, t } from "@/lib/i18n";
 import { TwoPeople } from "../art/Figure";
 import { SinkCheck } from "../art/SinkCheck";
+import { ScrewCheck, checkScrews } from "../art/ScrewCheck";
 import Thumb from "../Thumb";
 import { getPref, setPref } from "@/lib/store";
 import { BRAND, BRAND_INFO } from "@/lib/brand";
@@ -44,7 +45,8 @@ export default function StepPanel({
   const last = index === plan.steps.length - 1;
   const tip = tipFor(plan, index);
   const big = s.warnings.filter((w) => isSafety(w) && !(w === "wall" && s.warnings.includes("tip")));
-  const small = s.warnings.filter((w) => !isSafety(w) && w !== "sink");
+  const small = s.warnings.filter((w) => !isSafety(w) && w !== "sink" && w !== "length");
+  const screws = s.warnings.includes("length") ? checkScrews(plan, c.hardware.map((h) => h.type)) : [];
   const next = plan.steps[index + 1];
   const twoAhead = s.people === 1 ? plan.steps.slice(index + 1, index + 3).findIndex((x) => x.people === 2) : -1;
   const id = plan.spec.name + plan.spec.variant;
@@ -122,6 +124,16 @@ export default function StepPanel({
               <div>
                 <b>{t("warn.sinkTitle")}</b>
                 <span>{t("warn.sinkBody")}</span>
+              </div>
+            </div>
+          )}
+
+          {screws.length > 0 && (
+            <div className="callout sink length">
+              <ScrewCheck screws={screws} height={92} className="sink-art" />
+              <div>
+                <b>{t("warn.lengthTitle")}</b>
+                <span>{t("warn.lengthBody", { sizes: screws.filter((x) => x.ok).map((x) => `${x.dia} × ${x.len} mm`).join(", ") })}</span>
               </div>
             </div>
           )}

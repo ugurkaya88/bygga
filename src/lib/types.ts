@@ -440,6 +440,7 @@ export type WarnId =
   | "floor"
   | "face"
   | "sink"
+  | "length" // the manual's screw length check: the box's screws side by side, the ones not to use in this step crossed out
   | "tip";
 
 export type Pose = "+y" | "-y" | "+z" | "-z" | "+x" | "-x";

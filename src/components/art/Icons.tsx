@@ -209,6 +209,15 @@ export function WarnIcon({ id, size = 36 }: { id: WarnId; size?: number }) {
         <circle cx="20" cy="20" r="3" fill="var(--art-paper, #fff)" />
       </g>
     ),
+    length: (
+      <g {...s}>
+        <path d="M8 8h10l-3.6 3.6h-2.8z" fill="var(--art-paper, #fff)" />
+        <path d="M11.6 11.6v12l1.4 3.4 1.4-3.4v-12" fill="var(--art-paper, #fff)" />
+        <path d="M22 6h10l-3.6 3.6h-2.8z" fill="var(--art-paper, #fff)" />
+        <path d="M25.6 9.6v20l1.4 3.4 1.4-3.4v-20" fill="var(--art-paper, #fff)" />
+        <path d="M22 15l10 10M32 15l-10 10" stroke="var(--art-wrong, #c0392b)" strokeWidth={2.4} />
+      </g>
+    ),
     tip: (
       <g {...s}>
         <path d="M5 35h30" />
@@ -236,6 +245,7 @@ export const WARN_TEXT: Record<WarnId, string> = {
   floor: t("warn.floor"),
   face: t("warn.face"),
   sink: t("warn.sink"),
+  length: t("warn.length"),
   tip: t("warn.tip"),
 };
 
