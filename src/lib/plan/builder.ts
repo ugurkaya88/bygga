@@ -7,6 +7,7 @@ import type {
   PartItem,
   PartMaterial,
   PartPiece,
+  PartSwing,
   PartType,
   Plan,
   Pose,
@@ -102,7 +103,7 @@ export function hwSpecText(kind: HwKind, len: number, dia: number) {
   }
 }
 
-const DUR = { part: 0.95, hw: 0.6, lift: 0.6, pad: 4.0 }; // lift: the extra for a part lifted over from where it waited (stage.ts LIFT); pad: a glide got ready and pressed on (stage.ts PAD_DUR)
+const DUR = { part: 0.95, hw: 0.6, lift: 0.6, pad: 4.0, swing: 1.5 }; // lift: the extra for a part lifted over from where it waited (stage.ts LIFT); pad: a glide got ready and pressed on (stage.ts PAD_DUR); swing: a door held open, then swung shut (stage.ts SWING_HOLD + SWING_DUR)
 
 export interface StepDef {
   title: string;
@@ -282,11 +283,11 @@ export class PlanBuilder {
     return d;
   }
 
-  /** Part reaches its assembled position in this step. */
-  add(key: string, from?: Vec3, o: { spin?: number; lift?: boolean } = {}) {
+  /** Part reaches its assembled position in this step (a door with `swing` reaches it hung open, then swings shut). */
+  add(key: string, from?: Vec3, o: { spin?: number; lift?: boolean; swing?: PartSwing } = {}) {
     const it = this.partItem(key);
     const s = this.step_;
-    it.states.push({ step: s.n, scene: s.scene, pos: it.final.pos, rot: it.final.rot, from, spin: o.spin, lift: o.lift, delay: this.slot(DUR.part + (o.spin ? 0.4 : 0) + (o.lift ? DUR.lift : 0)) });
+    it.states.push({ step: s.n, scene: s.scene, pos: it.final.pos, rot: it.final.rot, from, spin: o.spin, lift: o.lift, swing: o.swing, delay: this.slot(DUR.part + (o.spin ? 0.4 : 0) + (o.lift ? DUR.lift : 0) + (o.swing ? DUR.swing : 0)) });
   }
 
   /** Part is shown somewhere else (laid flat, upside down...) from this step until it is added. */

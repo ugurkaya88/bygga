@@ -1,5 +1,5 @@
 import * as THREE from "three";
-import type { HwItem, PartItem, PartState, PartType, Plan, Step, Vec3 } from "@/lib/types";
+import type { HwItem, PartItem, PartState, PartSwing, PartType, Plan, Step, Vec3 } from "@/lib/types";
 import { POSE_EULER } from "@/lib/plan/math";
 import { Drawable, hwDrawable, markDrawable, partDrawable, wallDrawable } from "./drawable";
 import { INK, INK_OLD } from "./materials";
@@ -48,6 +48,8 @@ const poseDur = (angle: number) => Math.min(1.2, Math.max(0.6, 0.45 + angle * 0.
 
 const PART_DUR = 0.95;
 const LIFT = 0.6; // extra seconds for a part lifted over from where it waited
+const SWING_HOLD = 0.5; // a door hung open (PartState.swing) waits open this long once it is there
+const SWING_DUR = 1.0; // then swings shut (builder.ts DUR.swing is the two together)
 const HW_DUR = 0.6;
 const CAM_TURN = 0.62;
 const EL_MAX = 1.5; // camera elevation limit either way (radians), short of straight up or down
@@ -83,6 +85,12 @@ interface Xf {
   p: THREE.Vector3;
   q: THREE.Quaternion;
 }
+/** A door hung open (PartState.swing): the hinge line, a point on it and its way, and how far it is turned open. */
+interface Swing {
+  at: THREE.Vector3;
+  axis: THREE.Vector3;
+  angle: number;
+}
 /** A pencil line or drilled hole on the wall, drawn in step `step` (the `i`th there). */
 interface MNode {
   step: number;
@@ -113,6 +121,19 @@ function glide(from: number, to: number, v: number, dt: number): [number, number
 
 function quatFromEuler(e: Vec3) {
   return new THREE.Quaternion().setFromEuler(new THREE.Euler(e[0], e[1], e[2], "XYZ"));
+}
+
+const swingQ = new THREE.Quaternion();
+/** Where a door hung open is when it has swung `f` of the way shut: `fin` turned the rest of the way about its hinge line. */
+function swung(fin: Xf, sw: Swing, f: number, out: Xf) {
+  swingQ.setFromAxisAngle(sw.axis, sw.angle * (1 - f));
+  out.p.copy(fin.p).sub(sw.at).applyQuaternion(swingQ).add(sw.at);
+  out.q.copy(swingQ).multiply(fin.q);
+  return out;
+}
+
+function swingOf(s: PartSwing): Swing {
+  return { at: new THREE.Vector3(...s.at), axis: new THREE.Vector3(...s.axis).normalize(), angle: s.angle };
 }
 
 export class Stage {
@@ -299,8 +320,10 @@ export class Stage {
   private fallback = 0;
   private frameDt = 1 / 60;
   /** where each part starts and ends in the step being shown, worked out once per step instead of every frame */
-  private stepXf = new Map<PNode, { st: PartState; prev: PartState | null; fin: Xf; from: Xf | null; off: THREE.Vector3 }>();
+  private stepXf = new Map<PNode, { st: PartState; prev: PartState | null; fin: Xf; from: Xf | null; off: THREE.Vector3; swing: Swing | null; open: Xf | null }>();
   private finalXf = new Map<PNode, Xf>();
+  /** where a door hung open is this frame, on its way shut */
+  private swingXf: Xf = { p: new THREE.Vector3(), q: new THREE.Quaternion() };
 
   /* ---------------- setup ---------------- */
 
@@ -633,15 +656,22 @@ export class Stage {
         const { st, prev } = this.stateAt(p, s);
         if (!st || st.scene !== step.scene) continue;
         const moves = st.step === s && prev && prev.scene === st.scene;
+        const fin = { p: new THREE.Vector3(...st.pos), q: quatFromEuler(st.rot) };
+        // a door hung in this step comes in open: the view takes in where it opens to as well
+        const swing = st.step === s && st.swing ? swingOf(st.swing) : null;
+        const open = swing ? swung(fin, swing, 0, { p: new THREE.Vector3(), q: new THREE.Quaternion() }) : null;
         this.stepXf.set(p, {
           st,
           prev,
-          fin: { p: new THREE.Vector3(...st.pos), q: quatFromEuler(st.rot) },
+          fin,
           from: moves ? { p: new THREE.Vector3(...prev.pos), q: quatFromEuler(prev.rot) } : null,
           off: st.from ? new THREE.Vector3(...st.from) : new THREE.Vector3(),
+          swing,
+          open,
         });
         this.frameLocal.push(...this.corners(p, st.pos, st.rot));
-        if (st.step === s) end = Math.max(end, st.delay + PART_DUR + (st.spin ? 0.4 : 0) + (st.lift ? LIFT : 0));
+        if (open) this.frameLocal.push(...p.corners.map((c) => c.clone().applyQuaternion(open.q).add(open.p)));
+        if (st.step === s) end = Math.max(end, st.delay + PART_DUR + (st.spin ? 0.4 : 0) + (st.lift ? LIFT : 0) + (swing ? SWING_HOLD + SWING_DUR : 0));
       }
       let first: HNode | undefined;
       for (const h of this.hws) {
@@ -892,30 +922,34 @@ export class Stage {
         visibleParts.add(p);
         const isNew = st.step === sIdx;
         if (isNew) {
-          const k = clamp01((t - st.delay) / (PART_DUR + (st.spin ? 0.4 : 0) + (st.lift ? LIFT : 0)));
+          const arrive = PART_DUR + (st.spin ? 0.4 : 0) + (st.lift ? LIFT : 0);
+          const k = clamp01((t - st.delay) / arrive);
           const e = easeLand(k);
+          // a door hung open comes in to its open place, waits there, then swings shut about its hinges
+          const goal = x.swing ? swung(fin, x.swing, easeInOut(clamp01((t - st.delay - arrive - SWING_HOLD) / SWING_DUR)), this.swingXf) : fin;
           let op = easeOut(clamp01((t - st.delay) / 0.3)) * fadeOut;
           if (x.from && st.lift && x.off.lengthSq() > 1) {
             // over to the start of its way in, then in along it
             const k1 = clamp01(k / 0.55), k2 = clamp01((k - 0.55) / 0.45);
-            tmpV.copy(fin.p).add(x.off);
+            tmpV.copy(goal.p).add(x.off);
             if (k < 0.55) node.position.lerpVectors(x.from.p, tmpV, easeInOut(k1));
-            else node.position.lerpVectors(tmpV, fin.p, easeInOut(k2));
-            node.quaternion.slerpQuaternions(x.from.q, fin.q, easeInOut(k1));
+            else node.position.lerpVectors(tmpV, goal.p, easeInOut(k2));
+            node.quaternion.slerpQuaternions(x.from.q, goal.q, easeInOut(k1));
             op = 1;
           } else if (x.from) {
-            node.position.lerpVectors(x.from.p, fin.p, easeInOut(k));
-            node.quaternion.slerpQuaternions(x.from.q, fin.q, easeInOut(k));
+            node.position.lerpVectors(x.from.p, goal.p, easeInOut(k));
+            node.quaternion.slerpQuaternions(x.from.q, goal.q, easeInOut(k));
             op = 1;
           } else {
-            node.position.copy(fin.p).addScaledVector(x.off, 1 - e);
-            node.quaternion.copy(fin.q);
+            node.position.copy(goal.p).addScaledVector(x.off, 1 - e);
+            node.quaternion.copy(goal.q);
             if (st.spin) {
               tmpQ.setFromAxisAngle(Y, -(1 - e) * st.spin * Math.PI * 2);
               node.quaternion.multiply(tmpQ);
             }
           }
-          const landed = k >= 1 ? clamp01((t - st.delay - PART_DUR) / 0.5) : 0;
+          const shut = x.swing ? arrive - PART_DUR + SWING_HOLD + SWING_DUR : 0;
+          const landed = k >= 1 ? clamp01((t - st.delay - PART_DUR - shut) / 0.5) : 0;
           this.styleDrawable(p.d, { opacity: op, ink: true, tint: (hover || lit ? 0.75 : 0.34 - landed * 0.1), width: 2.2 });
         } else {
           node.position.copy(fin.p);
@@ -1331,7 +1365,8 @@ export class Stage {
         const akey = st.from ? st.from.join(",") + "@" + st.delay.toFixed(2) : "";
         if (st.from && (st.lift || !(prev && prev.scene === st.scene)) && !arrowKeys.has(akey)) {
           arrowKeys.add(akey);
-          const fin = new THREE.Vector3(...st.pos);
+          // a door hung open comes in to where it opens to
+          const fin = this.stepXf.get(p)?.open?.p.clone() ?? new THREE.Vector3(...st.pos);
           const from = new THREE.Vector3(...st.from);
           const len = from.length();
           if (len > 60) {

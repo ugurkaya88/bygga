@@ -1,4 +1,4 @@
-import type { CustomFix, CustomPart, CustomStep, HwItem, HwKind, PartMaterial, Pose, ProductSpec, StepKind, ToolId, Vec3, WarnId } from "../types";
+import type { CustomFix, CustomPart, CustomStep, HwItem, HwKind, PartMaterial, PartSwing, Pose, ProductSpec, StepKind, ToolId, Vec3, WarnId } from "../types";
 import { t } from "../i18n";
 import { HW, PlanBuilder, type FitOpts, type HwDef } from "./builder";
 import { POSE_EULER, rotate, unrotate } from "./math";
@@ -431,8 +431,9 @@ export function buildCustom(b: PlanBuilder, s: ProductSpec) {
 
         b.stagger(adds.length > 3 ? 0.18 : 0.26);
         for (const n of adds) {
-          // a part that waited beside the build is lifted over to its way in first, then goes in along it
-          b.add(n.key, st.from?.[n.id] ?? approach(n, [...placed, ...inStep], pose), { lift: aside.has(n) || undefined });
+          // a part that waited beside the build is lifted over to its way in first, then goes in along it; a door
+          // the step hangs comes in open and swings shut
+          b.add(n.key, st.from?.[n.id] ?? approach(n, [...placed, ...inStep], pose), { lift: aside.has(n) || undefined, swing: hungOpen(n, st.swing?.[n.id]) });
           inStep.push(n);
         }
         if (adds.length) b.then(0.12);
@@ -454,6 +455,24 @@ export function buildCustom(b: PlanBuilder, s: ProductSpec) {
     if (adds.length || stepHosts.length) lastAdded = [...stepHosts, ...adds];
     stepHosts = [];
   });
+}
+
+/** For each side a door can be hinged on: which end (`end`) of the door along which axis (`k`) that edge is at, and the axis of the turn that brings the free edge toward the front (+z). */
+const HINGES = {
+  left: { k: 0, end: -1, axis: [0, -1, 0] },
+  right: { k: 0, end: 1, axis: [0, 1, 0] },
+  bottom: { k: 1, end: -1, axis: [1, 0, 0] },
+  top: { k: 1, end: 1, axis: [-1, 0, 0] },
+} as const;
+
+/** A door hung open (CustomStep.swing): turned about the hinged edge of its back face (-z), its free edge forward. */
+function hungOpen(n: Node, s?: { hinge: string; angle?: number }): PartSwing | undefined {
+  if (!s || !Object.keys(HINGES).includes(s.hinge)) return undefined;
+  const h = HINGES[s.hinge as keyof typeof HINGES];
+  const at: Vec3 = [mid(n.box, 0), mid(n.box, 1), n.box.min[2]];
+  at[h.k] = h.end < 0 ? n.box.min[h.k] : n.box.max[h.k];
+  const deg = typeof s.angle === "number" && s.angle > 0 ? Math.min(180, s.angle) : 90;
+  return { at, axis: [...h.axis], angle: (deg * Math.PI) / 180 };
 }
 
 /** Where a part waits before it is joined: off to the side of the build, at the height it will end up at. */

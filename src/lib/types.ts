@@ -212,6 +212,7 @@ export interface CustomStep {
   from?: Record<string, Vec3>; // part id -> offset it arrives from (mm), when the guess isn't right
   wait?: string[]; // parts that take fittings in this step but are joined in a later one: shown beside the build until then
   lay?: Record<string, { pos: Vec3; rot?: Vec3 }>; // parts shown at this place and turn (scene frame, mm and radians) from this step until a later step adds them: laid flat on the floor, side by side
+  swing?: Record<string, { hinge: "left" | "right" | "top" | "bottom"; angle?: number }>; // doors this step adds -> the edge their hinges are on (finished product's frame): each arrives hung open, its free edge turned `angle` degrees (90 by default) toward the front, then swings shut
   scene?: string; // a step drawn on its own, apart from the build (loose parts laid out); parts staged in it stay hidden in other scenes until they are added
   repeat?: number; // "do this twice": the same step for the other side
   kind?: StepKind;
@@ -386,7 +387,15 @@ export interface PartState {
   from?: Vec3; // approach offset in scene frame
   spin?: number; // revolutions about local Y while approaching
   lift?: boolean; // moves from where it waited to `from` off its place first, then in along it (a top lifted over and lowered on)
+  swing?: PartSwing; // a door hung on its hinges: it arrives open, turned about the hinge line, then swings shut into pos/rot
   delay: number;
+}
+
+/** A door hung open: turned `angle` radians about `axis` through `at` (scene frame, mm), the hinged edge of its back face. */
+export interface PartSwing {
+  at: Vec3;
+  axis: Vec3;
+  angle: number;
 }
 
 export interface PartItem {
