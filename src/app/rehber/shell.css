@@ -147,6 +147,30 @@
   font-weight: 900;
   color: var(--ink);
 }
+[data-brand="rehber"] .hw-box-name {
+  color: var(--ink);
+}
+/* the cards' x and the chip that brings them back, as the stage's own floating buttons */
+[data-brand="rehber"] .card-hide {
+  background: var(--card);
+  color: var(--ink-2);
+  box-shadow:
+    0 0 0 1px var(--line-2),
+    0 2px 6px -3px rgba(45, 34, 28, 0.35);
+}
+[data-brand="rehber"] .card-hide:hover {
+  background: var(--btn);
+  color: var(--on-btn);
+  box-shadow: none;
+}
+[data-brand="rehber"] .cards-show {
+  background: rgba(255, 255, 255, 0.94);
+  box-shadow: 0 0 0 1px var(--line-2);
+}
+[data-brand="rehber"] .cards-show:hover {
+  box-shadow: 0 0 0 1.5px var(--ink);
+  background: rgba(255, 255, 255, 0.94);
+}
 
 /* ================= over the drawing: the check stamp, toasts, stage controls ================= */
 

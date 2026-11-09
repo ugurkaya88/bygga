@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { AnimatePresence, motion } from "motion/react";
-import type { Plan } from "@/lib/types";
+import type { HwType, Plan } from "@/lib/types";
 import { stepContents, tipFor } from "@/lib/plan/contents";
 import { HwArt } from "../art/Hardware";
 import { ToolArt, TOOL_INFO } from "../art/Tools";
@@ -17,6 +17,11 @@ import { BRAND, BRAND_INFO } from "@/lib/brand";
 
 /** The warm theme draws its own two-person sign: Bygga's little lifters are its helper character. */
 const REHBER = BRAND === "rehber";
+
+/** A fitting's name as the step's list of what you need says it (the stage's fittings box says the same). */
+export function fittingName(type: HwType) {
+  return type.notIncluded ? (type.kind === "plug" ? t("step.wallPlug") : t("step.wallScrew")) : type.name;
+}
 
 export function minutesLeft(plan: Plan, index: number) {
   return plan.steps.slice(index).reduce((s, x) => s + x.minutes, 0);
@@ -156,7 +161,7 @@ export default function StepPanel({
                       <HwArt kind={type.kind} len={type.len} dia={type.dia} fit={40} />
                     </span>
                     <span className="need-name">
-                      {type.notIncluded ? (type.kind === "plug" ? t("step.wallPlug") : t("step.wallScrew")) : type.name}
+                      {fittingName(type)}
                       {type.spec && <small>{type.spec}</small>}
                     </span>
                     <span className="need-qty">{count}&times;</span>

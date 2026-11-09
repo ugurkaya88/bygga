@@ -18,12 +18,12 @@ import { HwArt } from "../art/Hardware";
 import { SinkCheck } from "../art/SinkCheck";
 import { ScrewCheck, checkScrews } from "../art/ScrewCheck";
 import { Helper } from "../art/Helper";
-import { ICheck, IGrid, IHelp, IMic, IPause, IPlay, IReplay, IRotate, IScan, ISound, ISoundOff, ISparkle } from "../art/Icons";
+import { ICheck, IClose, IEye, IGrid, IHelp, IMic, IPause, IPlay, IReplay, IRotate, IScan, ISound, ISoundOff, ISparkle } from "../art/Icons";
 import CoverPanel from "./CoverPanel";
 import ToolsPanel from "./ToolsPanel";
 import BeforePanel from "./BeforePanel";
 import PartsPanel from "./PartsPanel";
-import StepPanel from "./StepPanel";
+import StepPanel, { fittingName } from "./StepPanel";
 import DonePanel, { Confetti } from "./DonePanel";
 import Feedback from "./Feedback";
 import HelpSheet from "./HelpSheet";
@@ -52,6 +52,8 @@ const EXITS = BRAND_INFO.exits;
 const BADGE = BRAND === "rehber";
 
 type Via = "catalog" | "ai" | "guess" | "scan";
+/** The cards under the step number over the drawing's top left, each of which can be put away on its own step. */
+type Card = "fittings" | "sink" | "length";
 
 export default function GuideApp({ slug, query, step, kind }: { slug: string; query?: string; step?: number; kind?: string }) {
   const router = useRouter();
@@ -442,6 +444,48 @@ function Guide({ plan, slug, via, ai, startStep, onOwnSteps }: { plan: Plan; slu
   const [readable, setReadable] = useState(true);
   // bumped after the key modal closes on a key problem (a top-up, say), so listening tries again
   const [listenTry, setListenTry] = useState(0);
+  // the corner cards put away, by step, for as long as the guide is open
+  const [hiddenCards, setHiddenCards] = useState<Record<number, Card[]>>({});
+  // how far the corner cards reach over the drawing (px), measured, so the drawing keeps clear of what is shown
+  const [cornerBox, setCornerBox] = useState<{ w: number; h: number } | null>(null);
+  const corner = useRef<HTMLDivElement | null>(null);
+  // where the keyboard goes once a card is put away or brought back: its own button is gone
+  const refocus = useRef<"show" | "hide" | null>(null);
+  // the cards' reach as laid out (a card still sliding in counts where it lands), again whenever one comes, goes or resizes
+  const watchCorner = useCallback((el: HTMLDivElement | null) => {
+    corner.current = el;
+    if (!el) return;
+    const measure = () => {
+      let w = 0, h = 0;
+      for (const c of el.children) {
+        if (!(c instanceof HTMLElement) || c.classList.contains("num-wrap")) continue;
+        // .corner's offsets are from .sheet, which the stage fills
+        w = Math.max(w, el.offsetLeft + c.offsetLeft + c.offsetWidth);
+        h = Math.max(h, el.offsetTop + c.offsetTop + c.offsetHeight);
+      }
+      setCornerBox((b) => (b && b.w === w && b.h === h ? b : { w, h }));
+    };
+    const ro = new ResizeObserver(measure);
+    const watch = () => {
+      ro.disconnect();
+      ro.observe(el);
+      for (const c of el.children) ro.observe(c);
+    };
+    const mo = new MutationObserver(watch);
+    mo.observe(el, { childList: true });
+    watch();
+    return () => {
+      ro.disconnect();
+      mo.disconnect();
+      corner.current = null;
+    };
+  }, []);
+  useEffect(() => {
+    const to = refocus.current;
+    if (!to) return;
+    refocus.current = null;
+    corner.current?.querySelector<HTMLElement>(to === "show" ? ".cards-show" : ".card-hide")?.focus();
+  });
 
   // restore progress once we are in the browser
   const [restored, setRestored] = useState(false);
@@ -830,6 +874,21 @@ function Guide({ plan, slug, via, ai, startStep, onOwnSteps }: { plan: Plan; slu
   const highlight = hl ?? (hover3d ? [hover3d] : null);
   const cur = steps[step];
   const contents = phase === "steps" ? stepContents(plan, step) : null;
+  const screws = contents && cur?.warnings.includes("length") ? checkScrews(plan, contents.hardware.map((h) => h.type)) : [];
+  const cards: Card[] = [];
+  if (contents && contents.hardware.length > 0) cards.push("fittings");
+  if (contents && cur?.warnings.includes("sink")) cards.push("sink");
+  if (screws.length > 0) cards.push("length");
+  const hidden = cards.filter((c) => hiddenCards[step]?.includes(c));
+  const shown = (c: Card) => cards.includes(c) && !hidden.includes(c);
+  const hideCard = (c: Card) => {
+    refocus.current = corner.current?.contains(document.activeElement) ? "show" : null;
+    setHiddenCards((h) => ({ ...h, [step]: [...(h[step] ?? []), c] }));
+  };
+  const showCards = () => {
+    refocus.current = corner.current?.contains(document.activeElement) ? "hide" : null;
+    setHiddenCards((h) => ({ ...h, [step]: [] }));
+  };
 
   const jump = (p: Phase) => {
     if (p === "steps") go("steps", Math.min(maxStep, steps.length - 1), PHASES.indexOf(p) >= PHASES.indexOf(phase) ? 1 : -1);
@@ -889,11 +948,12 @@ function Guide({ plan, slug, via, ai, startStep, onOwnSteps }: { plan: Plan; slu
             onIntroDone={() => setIntroPlayed(true)}
             onHover={setHover3d}
             onUserView={setMoved}
+            corner={phase === "steps" ? cornerBox : null}
           />
 
           {phase === "steps" && cur && (
-            <div className="corner" aria-hidden="true">
-              <div className="num-wrap">
+            <div className="corner" ref={watchCorner}>
+              <div className="num-wrap" aria-hidden="true">
                 {BADGE ? (
                   <span className="step-badge">
                     <AnimatePresence mode="popLayout" initial={false}>
@@ -926,25 +986,40 @@ function Guide({ plan, slug, via, ai, startStep, onOwnSteps }: { plan: Plan; slu
                 {BADGE && <CornerOf total={steps.length} parts={contents?.parts ?? []} />}
                 {cur.repeat && cur.repeat > 1 && <span className="corner-repeat">{cur.repeat}&times;</span>}
               </div>
-              {contents && contents.hardware.length > 0 && (
-                <motion.div key={"hw" + step} className="hw-box" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.15, duration: 0.35 }}>
+              {contents && shown("fittings") && (
+                <motion.div key={"hw" + step} className="hw-box corner-card" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.15, duration: 0.35 }}>
                   {contents.hardware.slice(0, 4).map(({ type, count }) => (
-                    <span key={type.id} className={"hw-box-item" + (highlight?.includes(type.id) ? " lit" : "")}>
-                      <HwArt kind={type.kind} len={type.len} dia={type.dia} fit={40} />
+                    <span key={type.id} className={"hw-box-item" + (highlight?.includes(type.id) ? " lit" : "")} aria-hidden="true">
+                      <span className="hw-box-art">
+                        <HwArt kind={type.kind} len={type.len} dia={type.dia} fit={40} />
+                      </span>
                       <b>{count}&times;</b>
+                      <span className="hw-box-name">
+                        <span>{fittingName(type)}</span>
+                        {type.spec && <small>{type.spec}</small>}
+                      </span>
                     </span>
                   ))}
+                  <HideCard onHide={() => hideCard("fittings")} />
                 </motion.div>
               )}
-              {cur.warnings.includes("sink") && (
-                <motion.div key={"sink" + step} className="sink-box" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.25, duration: 0.35 }}>
+              {shown("sink") && (
+                <motion.div key={"sink" + step} className="sink-box corner-card" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.25, duration: 0.35 }}>
                   <SinkCheck width={150} />
+                  <HideCard onHide={() => hideCard("sink")} />
                 </motion.div>
               )}
-              {cur.warnings.includes("length") && contents && checkScrews(plan, contents.hardware.map((h) => h.type)).length > 0 && (
-                <motion.div key={"length" + step} className="length-box" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.25, duration: 0.35 }}>
-                  <ScrewCheck screws={checkScrews(plan, contents.hardware.map((h) => h.type))} />
+              {shown("length") && (
+                <motion.div key={"length" + step} className="length-box corner-card" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.25, duration: 0.35 }}>
+                  <ScrewCheck screws={screws} />
+                  <HideCard onHide={() => hideCard("length")} />
                 </motion.div>
+              )}
+              {hidden.length > 0 && (
+                <motion.button key={"show" + step} type="button" className="cards-show" onClick={showCards} initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.2 }}>
+                  <IEye size={15} />
+                  {t("guide.showCards")}
+                </motion.button>
               )}
             </div>
           )}
@@ -1196,6 +1271,15 @@ function Guide({ plan, slug, via, ai, startStep, onOwnSteps }: { plan: Plan; slu
 }
 
 const PHASES: Phase[] = ["cover", "before", "tools", "parts", "steps", "done"];
+
+/** The small x on a corner card: puts that card away on this step only. */
+function HideCard({ onHide }: { onHide: () => void }) {
+  return (
+    <button type="button" className="card-hide" onClick={onHide} aria-label={t("guide.hideCard")} title={t("guide.hideCard")}>
+      <IClose size={13} strokeWidth={2.6} />
+    </button>
+  );
+}
 
 /** "Just read it aloud" holds for the rest of the visit, so turning the voice on again doesn't ask again. */
 const SKIP = "bygga:key-skip";

@@ -8,13 +8,13 @@ import { BRAND } from "@/lib/brand";
 import { t as tx } from "@/lib/i18n";
 
 /**
- * How far down the stage's top left corner reaches in a step (GuideApp .corner), in px, desktop and phone: the step
- * number alone, and the number with the fittings box under it. Bygga's giant numeral is up to 100 px tall (50 on
- * phones), rehber's step badge 56 px (44); the countersunk check adds the same under either. Rehber's fittings
- * height is measured, not summed: with two or more kinds the box is 79 px tall (69 on phones), so the corner ends
- * at 163 (133); one kind ends higher.
+ * The stage's top left corner in a step (GuideApp .corner) as estimated before the page has measured it
+ * (Stage.setCorner), in px, desktop and phone: how far down the step number alone reaches, and where the cards under
+ * it start. Bygga's giant numeral is up to 100 px tall (50 on phones), rehber's step badge 56 px (44). The fittings
+ * box lists one kind to a row, 42 px a row and 10 more (32 and 6 on phones), and with names it is about 210 px wide
+ * (170); the countersunk check adds the same under either look.
  */
-const CORNER_H = BRAND === "rehber" ? { num: [84, 60], fittings: [164, 134] } : { num: [116, 62], fittings: [200, 128] };
+const CORNER_H = BRAND === "rehber" ? { num: [84, 60], cards: [84, 64] } : { num: [116, 62], cards: [128, 70] };
 
 /** Part names can come from a shared scan link: never let them through as markup. */
 const esc = (t: string) => String(t).replace(/[&<>"']/g, (c) => `&#${c.charCodeAt(0)};`);
@@ -59,6 +59,9 @@ const SHIFT_DUR = 1.3; // the whole build pulled away from the wall or pushed ba
 const MARK_DUR = 0.7; // a pencil line drawn on
 const MARK_GAP = 0.4;
 const CAM_SMOOTH = 0.5; // seconds: how unhurried the view is when it moves to a new angle or framing
+const ZOOM_IN = 0.12; // the user's zoom, as a share of the step's framing: about 8 times closer for a detail
+const ZOOM_OUT = 2.5;
+const WHEEL_EASE = 0.08; // seconds: a turn of the wheel zooms in over a few frames instead of in one jump
 // a stick-on glide got ready before it goes on (HwItem.pad): held turned over PAD_HOVER mm out, its pad comes PAD_REACH
 // mm onto it, the pad's backing is peeled, then it turns back and is pressed on. Times in seconds from its delay.
 const PAD = { reach: 0.45, peel: 1.4, peeled: 2.6, off: 2.55, gone: 2.9, flip: 2.95, press: 3.35, dur: 4.0 }; // builder.ts DUR.pad
@@ -176,6 +179,8 @@ export class Stage {
   userAz = 0;
   userEl = 0;
   userZoom = 1;
+  /** where the user moved the view, in world mm: the middle of the screen shows the framing's middle plus this */
+  userPan = new THREE.Vector3();
   dragging = false;
   autoReset = true;
   camTarget = new THREE.Vector3();
@@ -192,6 +197,14 @@ export class Stage {
   userAzV = 0;
   userElV = 0;
   userZoomV = 0;
+  userPanV = new THREE.Vector3();
+  /** what the wheel asked for: the zoom and the pan ease there together, so the point under the pointer stays put */
+  private zoomGoal = 1;
+  private panGoal = new THREE.Vector3();
+  /** the view's screen axes and its mm per px at zoom 1, as last drawn: the pointer moves the view in screen px */
+  private camRight = new THREE.Vector3(1, 0, 0);
+  private camUp = new THREE.Vector3(0, 1, 0);
+  private camUnit = 1;
   /** seconds the turntable has been turning, so it starts from still instead of wherever the clock was */
   turnT = 0;
   rootQ = new THREE.Quaternion();
@@ -221,8 +234,8 @@ export class Stage {
   private io?: IntersectionObserver;
   private ro?: ResizeObserver;
   private pointers = new Map<number, { x: number; y: number }>();
-  private pinch0 = 0;
-  private zoom0 = 1;
+  /** a two finger pinch: the fingers' distance and the zoom when it started, and the last point between them */
+  private pinch: { d: number; zoom: number; at: { x: number; y: number } } | null = null;
   private downAt = { x: 0, y: 0, t: 0 };
   private extents = new Map<string, THREE.Vector3[]>();
   private typeFirst = new Map<string, number>();
@@ -243,6 +256,12 @@ export class Stage {
   private sinkBox = false;
   /** the screw length check's card under the fittings box, in px (desktop): 0 when the step has none */
   private lengthBox = { w: 0, h: 0 };
+  /**
+   * The cards over the drawing's top left as the page measured them (GuideApp .corner under the step number): how
+   * far right and down they reach, in px, or 0 by 0 when none are shown. Null (thumbnails, or before the page has
+   * measured) leaves it to the estimate from the step's fittings and checks above.
+   */
+  private cornerBox: { w: number; h: number } | null = null;
   margins?: { t: number; r: number; b: number; l: number };
 
   constructor(el: HTMLElement, opts: StageOptions = {}) {
@@ -614,6 +633,11 @@ export class Stage {
   resetView() {
     this.autoReset = true;
     this.opts.onUserView?.(false);
+  }
+
+  /** What the cards in the corner cover, measured by the page; the framing glides to the room it leaves. */
+  setCorner(box: { w: number; h: number } | null) {
+    this.cornerBox = box;
   }
 
   private flash() {
@@ -1161,15 +1185,32 @@ export class Stage {
         [this.camEl, this.camElV] = glide(this.camEl, want.el, this.camElV, dt);
       }
     }
-    // a view the user turned or zoomed glides back the same way when the step changes
+    // a view the user turned, zoomed or moved glides back the same way when the step changes
     if (this.autoReset && !this.dragging && dt > 0) {
       [this.userAz, this.userAzV] = glide(this.userAz, 0, this.userAzV, dt);
       [this.userEl, this.userElV] = glide(this.userEl, 0, this.userElV, dt);
-      [this.userZoom, this.userZoomV] = glide(this.userZoom, 1, this.userZoomV, dt);
+      // the zoom glides in steps of scale, so a close look widens at an even pace
+      let lz: number;
+      [lz, this.userZoomV] = glide(Math.log(this.userZoom), 0, this.userZoomV, dt);
+      this.userZoom = Math.exp(lz);
+      for (const c of ["x", "y", "z"] as const) [this.userPan[c], this.userPanV[c]] = glide(this.userPan[c], 0, this.userPanV[c], dt);
     } else if (this.autoReset && !this.dragging) {
       this.userAz = this.userEl = this.userAzV = this.userElV = this.userZoomV = 0;
       this.userZoom = 1;
-    } else this.userAzV = this.userElV = this.userZoomV = 0;
+      this.userPan.set(0, 0, 0);
+      this.userPanV.set(0, 0, 0);
+    } else {
+      this.userAzV = this.userElV = this.userZoomV = 0;
+      this.userPanV.set(0, 0, 0);
+      // the wheel's zoom eases in; zoom and pan ease alike, so the point it was turned at stays where it is
+      const f = dt > 0 ? 1 - Math.exp(-dt / WHEEL_EASE) : 1;
+      this.userZoom += (this.zoomGoal - this.userZoom) * f;
+      this.userPan.lerp(this.panGoal, f);
+    }
+    if (this.autoReset) {
+      this.zoomGoal = this.userZoom;
+      this.panGoal.copy(this.userPan);
+    }
     // the view can drop below the floor, to look at the underside
     const az = this.camAz + this.userAz, el = Math.max(-EL_MAX, Math.min(EL_MAX, this.camEl + this.userEl));
     const dir = new THREE.Vector3(Math.sin(az) * Math.cos(el), Math.sin(el), Math.cos(az) * Math.cos(el));
@@ -1223,12 +1264,17 @@ export class Stage {
       const aw = Math.max(60, this.w - l - r), ah = Math.max(60, this.h - t - b);
       return { l, t, aw, ah, s: Math.max((maxR - minR) / aw, (maxU - minU) / ah, 0.05) };
     };
-    // the fittings box covers the top left: keep the drawing either below it or to its right
+    // the fittings box covers the top left: keep the drawing either below it or to its right (a thumbnail has no cards)
     const starts: [number, number][] = [[mL, mT]];
-    if (k === "step" && (this.cornerItems || this.sinkBox || this.lengthBox.h)) {
+    const box = k === "step" && !this.opts.offscreen ? this.cornerBox : null;
+    if (box) {
+      // as the page measured what it shows, with a little air: the cards' x buttons stand 8 px out
+      if (box.h > 0) starts.splice(0, 1, [mL, Math.max(mT, box.h + 10)], [Math.max(mL, box.w + 10), mT]);
+    } else if (k === "step" && !this.opts.offscreen && (this.cornerItems || this.sinkBox || this.lengthBox.h)) {
       // the step number alone is inside the top margin; the countersunk check sits under the fittings box
-      let boxH = (this.cornerItems ? CORNER_H.fittings : CORNER_H.num)[mob ? 1 : 0];
-      let boxW = this.cornerItems ? (mob ? 34 + this.cornerItems * 48 : 46 + this.cornerItems * 62) : 0;
+      const n = this.cornerItems;
+      let boxH = n ? CORNER_H.cards[mob ? 1 : 0] + (mob ? 6 + n * 32 : 10 + n * 42) : CORNER_H.num[mob ? 1 : 0];
+      let boxW = n ? (mob ? 16 + 170 : 24 + 210) : 0;
       if (this.sinkBox) {
         boxH += mob ? 72 : 96;
         boxW = Math.max(boxW, mob ? 134 : 182);
@@ -1261,9 +1307,9 @@ export class Stage {
     const scale = best.s * (k === "part" ? 1.04 : 1.06);
     let halfH = (scale * this.h) / 2;
     const offX = mL + availW / 2 - this.w / 2, offY = mT + availH / 2 - this.h / 2;
-    const cr = (minR + maxR) / 2 - offX * scale * this.userZoom, cu = (minU + maxU) / 2 + offY * scale * this.userZoom;
+    const cr = (minR + maxR) / 2 - offX * scale, cu = (minU + maxU) / 2 + offY * scale;
     void aspect;
-    halfH = Math.max(halfH, 60) * this.userZoom;
+    halfH = Math.max(halfH, 60);
     center.copy(right).multiplyScalar(cr).addScaledVector(up, cu);
     // keep depth component around the bbox centre
     if (pts.length) {
@@ -1282,18 +1328,33 @@ export class Stage {
       for (const c of ["x", "y", "z"] as const) [this.camTarget[c], this.camTargetV[c]] = glide(this.camTarget[c], center[c], this.camTargetV[c], dt);
       [this.camHalf, this.camHalfV] = glide(this.camHalf, halfH, this.camHalfV, dt);
     }
+    // the user's zoom and pan go on top of the framing's glide, so they answer the pointer at once
+    this.camRight.copy(right);
+    this.camUp.copy(up);
+    this.camUnit = (2 * this.camHalf) / this.h;
+    this.clampPan(this.userPan);
+    this.clampPan(this.panGoal);
+    const half = this.camHalf * this.userZoom;
+    const look = new THREE.Vector3().copy(this.camTarget).add(this.userPan);
     const cam = this.camera;
-    cam.left = -this.camHalf * aspect;
-    cam.right = this.camHalf * aspect;
-    cam.top = this.camHalf;
-    cam.bottom = -this.camHalf;
-    cam.position.copy(this.camTarget).addScaledVector(dir, 8000);
+    cam.left = -half * aspect;
+    cam.right = half * aspect;
+    cam.top = half;
+    cam.bottom = -half;
+    cam.position.copy(look).addScaledVector(dir, 8000);
     cam.up.copy(Y);
-    cam.lookAt(this.camTarget);
+    cam.lookAt(look);
     cam.near = 10;
     cam.far = 30000;
     cam.updateProjectionMatrix();
     cam.updateMatrixWorld();
+  }
+
+  /** Keep a moved view's middle over the framing (zoomed out, over its middle), so the drawing is never lost off screen. */
+  private clampPan(v: THREE.Vector3) {
+    const z = Math.max(1, this.userZoom), r = v.dot(this.camRight), u = v.dot(this.camUp);
+    const maxR = (this.w / 2) * this.camUnit * z, maxU = (this.h / 2) * this.camUnit * z;
+    v.addScaledVector(this.camRight, Math.max(-maxR, Math.min(maxR, r)) - r).addScaledVector(this.camUp, Math.max(-maxU, Math.min(maxU, u)) - u);
   }
 
   /* ---------------- render ---------------- */
@@ -1568,7 +1629,7 @@ export class Stage {
 
     const world = this.root.localToWorld(f.local.clone());
     const dirW = f.dir.clone().applyQuaternion(this.root.quaternion).normalize();
-    const camDir = new THREE.Vector3().subVectors(this.camera.position, this.camTarget).normalize().negate();
+    const camDir = this.camera.getWorldDirection(new THREE.Vector3());
     const view = dirW.clone().multiplyScalar(0.85).addScaledVector(camDir, 0.55).normalize();
     const cam = co.camera;
     const half = f.size;
@@ -1651,8 +1712,7 @@ export class Stage {
       this.downAt = { x: e.clientX, y: e.clientY, t: performance.now() };
       if (this.pointers.size === 2) {
         const [p1, p2] = [...this.pointers.values()];
-        this.pinch0 = Math.hypot(p1.x - p2.x, p1.y - p2.y);
-        this.zoom0 = this.userZoom;
+        this.pinch = { d: Math.max(1, Math.hypot(p1.x - p2.x, p1.y - p2.y)), zoom: this.userZoom, at: this.fromMiddle((p1.x + p2.x) / 2, (p1.y + p2.y) / 2) };
       }
       this.dragging = true;
     });
@@ -1662,42 +1722,61 @@ export class Stage {
         this.hoverAt(e.clientX, e.clientY);
         return;
       }
-      if (this.pointers.size === 2) {
-        this.pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
+      this.pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
+      if (this.pointers.size === 2 && this.pinch) {
+        // two fingers: spreading them zooms about the point between them, moving them together moves the view
         const [p1, p2] = [...this.pointers.values()];
-        const d = Math.hypot(p1.x - p2.x, p1.y - p2.y);
-        if (this.pinch0 > 0) this.userZoom = Math.max(0.35, Math.min(2.5, (this.zoom0 * this.pinch0) / d));
-      } else {
+        const at = this.fromMiddle((p1.x + p2.x) / 2, (p1.y + p2.y) / 2);
+        const zoom = Math.max(ZOOM_IN, Math.min(ZOOM_OUT, (this.pinch.zoom * this.pinch.d) / Math.max(1, Math.hypot(p1.x - p2.x, p1.y - p2.y))));
+        this.userPan.add(this.screenMm(this.pinch.at.x, this.pinch.at.y, this.userZoom)).sub(this.screenMm(at.x, at.y, zoom));
+        this.panGoal.copy(this.userPan);
+        this.userZoom = this.zoomGoal = zoom;
+        this.pinch.at = at;
+      } else if (this.pointers.size === 1) {
         const dx = e.clientX - prev.x, dy = e.clientY - prev.y;
-        this.pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
-        this.userAz -= dx * 0.0075;
-        this.userEl += dy * 0.005;
-        this.userEl = Math.max(-EL_MAX - this.camEl, Math.min(EL_MAX - this.camEl, this.userEl));
+        // the right or middle button, or shift with the left, moves the view: what is under the pointer stays under it
+        if (e.pointerType !== "touch" && ((e.buttons & 6) !== 0 || e.shiftKey)) {
+          const v = this.screenMm(dx, dy, this.userZoom);
+          this.userPan.sub(v);
+          this.panGoal.sub(v);
+          c.style.cursor = "move";
+        } else {
+          this.userAz -= dx * 0.0075;
+          this.userEl += dy * 0.005;
+          this.userEl = Math.max(-EL_MAX - this.camEl, Math.min(EL_MAX - this.camEl, this.userEl));
+          c.style.cursor = "";
+        }
       }
-      if (Math.hypot(e.clientX - this.downAt.x, e.clientY - this.downAt.y) > 4 && this.autoReset) {
-        this.autoReset = false;
-        this.opts.onUserView?.(true);
-      }
+      if (Math.hypot(e.clientX - this.downAt.x, e.clientY - this.downAt.y) > 4) this.userMoved();
       this.setHover(null);
     });
     const up = (e: PointerEvent) => {
       this.pointers.delete(e.pointerId);
       if (this.pointers.size === 0) this.dragging = false;
-      this.pinch0 = 0;
+      if (this.pointers.size < 2) this.pinch = null;
+      c.style.cursor = "";
     };
     c.addEventListener("pointerup", up);
     c.addEventListener("pointercancel", up);
     c.addEventListener("pointerleave", () => this.setHover(null));
+    // the right button drags the view about instead of opening the menu; the middle one doesn't start scrolling
+    c.addEventListener("contextmenu", (e) => e.preventDefault());
+    c.addEventListener("mousedown", (e) => {
+      if (e.button === 1) e.preventDefault();
+    });
     c.addEventListener(
       "wheel",
       (e) => {
         if (!e.ctrlKey && Math.abs(e.deltaY) < 1) return;
         e.preventDefault();
-        this.userZoom = Math.max(0.35, Math.min(2.5, this.userZoom * Math.exp(e.deltaY * 0.0015)));
-        if (this.autoReset) {
-          this.autoReset = false;
-          this.opts.onUserView?.(true);
-        }
+        this.userMoved();
+        // lines and pages (a mouse wheel in Firefox) as px
+        const dy = e.deltaY * (e.deltaMode === 1 ? 16 : e.deltaMode === 2 ? this.h : 1);
+        // the wheel zooms about the point under the pointer
+        const at = this.fromMiddle(e.clientX, e.clientY);
+        const zoom = Math.max(ZOOM_IN, Math.min(ZOOM_OUT, this.zoomGoal * Math.exp(dy * 0.0015)));
+        this.panGoal.copy(this.userPan).add(this.screenMm(at.x, at.y, this.userZoom - zoom));
+        this.zoomGoal = zoom;
       },
       { passive: false },
     );
@@ -1705,6 +1784,27 @@ export class Stage {
     this.tooltip = document.createElement("div");
     this.tooltip.className = "stage-tip";
     this.el.appendChild(this.tooltip);
+  }
+
+  /** The user has turned, zoomed or moved the view: it stays as they left it until the step changes or they reset it. */
+  private userMoved() {
+    if (!this.autoReset) return;
+    this.autoReset = false;
+    this.zoomGoal = this.userZoom;
+    this.panGoal.copy(this.userPan);
+    this.opts.onUserView?.(true);
+  }
+
+  /** A point on the page as px from the middle of the drawing, down positive. */
+  private fromMiddle(x: number, y: number) {
+    const r = this.renderer.domElement.getBoundingClientRect();
+    return { x: x - r.left - r.width / 2, y: y - r.top - r.height / 2 };
+  }
+
+  /** How far in world mm a move of x, y screen px (down positive) goes at the given zoom. */
+  private screenMm(x: number, y: number, zoom: number) {
+    const k = this.camUnit * zoom;
+    return new THREE.Vector3().addScaledVector(this.camRight, x * k).addScaledVector(this.camUp, -y * k);
   }
 
   private ray = new THREE.Raycaster();

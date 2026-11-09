@@ -62,6 +62,8 @@ const tr: Record<keyof typeof en, string> = {
   "guide.slow": "Yavaş",
   "guide.resetView": "Görünümü sıfırla",
   "guide.dragHint": "Çevirmek için sürükle",
+  "guide.hideCard": "Gizle",
+  "guide.showCards": "Kartları göster",
   "guide.layoutCaption": "Panelleri yere böyle diz",
   "guide.halfway": "Yarısını bitirdin. Aferin.",
   "guide.lastComing": "Son adım geliyor.",

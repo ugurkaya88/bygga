@@ -23,6 +23,7 @@ export default function StageView({
   onUserView,
   paused,
   speed,
+  corner,
 }: {
   plan: Plan | null;
   mode: StageMode;
@@ -35,6 +36,8 @@ export default function StageView({
   onUserView?: (changed: boolean) => void;
   paused?: boolean;
   speed?: number;
+  /** What the page's cards cover over the drawing's top left, in px (Stage.setCorner); the drawing keeps clear of it. */
+  corner?: { w: number; h: number } | null;
 }) {
   const host = useRef<HTMLDivElement>(null);
   const stage = useRef<Stage | null>(null);
@@ -43,9 +46,9 @@ export default function StageView({
     cbs.current = { onIntroDone, onHover, onUserView, onReady };
   });
   const modeKey = JSON.stringify(mode);
-  const latest = useRef({ plan, mode, highlight });
+  const latest = useRef({ plan, mode, highlight, corner });
   useEffect(() => {
-    latest.current = { plan, mode, highlight };
+    latest.current = { plan, mode, highlight, corner };
   });
 
   useEffect(() => {
@@ -60,7 +63,8 @@ export default function StageView({
         onUserView: (c) => cbs.current.onUserView?.(c),
       });
       stage.current = s;
-      const { plan: p, mode: m, highlight: h } = latest.current;
+      const { plan: p, mode: m, highlight: h, corner: box } = latest.current;
+      s.setCorner(box ?? null);
       if (p) {
         s.setPlan(p);
         s.setMode(m);
@@ -103,6 +107,9 @@ export default function StageView({
   useEffect(() => {
     stage.current?.setPaused(!!paused);
   }, [paused]);
+  useEffect(() => {
+    stage.current?.setCorner(corner ?? null);
+  }, [corner]);
   useEffect(() => {
     stage.current?.setSpeed(speed ?? 1);
   }, [speed]);

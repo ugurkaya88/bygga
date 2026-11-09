@@ -60,6 +60,8 @@ const en = {
   "guide.slow": "Slow",
   "guide.resetView": "Reset view",
   "guide.dragHint": "Drag to turn it around",
+  "guide.hideCard": "Hide",
+  "guide.showCards": "Show cards",
   "guide.layoutCaption": "Lay your panels out like this",
   "guide.halfway": "Halfway there. Nice work.",
   "guide.lastComing": "Last step coming up.",

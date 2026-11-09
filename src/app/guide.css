@@ -864,37 +864,123 @@
   font-weight: 800;
   font-size: 17px;
 }
+/* the step's fittings, one to a row: the drawing, how many, and the name with the size under it (stage.ts keeps the drawing clear of it) */
 .hw-box {
   display: flex;
-  gap: 4px;
-  padding: 8px 10px 6px;
+  flex-direction: column;
+  gap: 2px;
+  padding: 6px;
   background: #fff;
   border-radius: 16px;
   box-shadow: inset 0 0 0 1.8px var(--ink);
 }
+/* the right padding keeps the first name clear of the card's x */
 .hw-box-item {
   display: flex;
-  flex-direction: column;
   align-items: center;
-  justify-content: flex-end;
-  gap: 4px;
-  min-width: 54px;
-  padding: 2px 4px;
+  gap: 8px;
+  min-height: 40px;
+  padding: 2px 10px 2px 2px;
   border-radius: 10px;
   transition: background 0.2s;
 }
-.hw-box-item svg {
-  max-height: 40px;
+.hw-box-art {
+  display: grid;
+  place-items: center;
+  flex: 0 0 auto;
+  width: 44px;
+  height: 36px;
+}
+.hw-box-art svg {
+  max-width: 44px;
+  max-height: 36px;
 }
 .hw-box-item b {
+  flex: 0 0 auto;
+  min-width: 2.1em;
   font-size: 15px;
   font-weight: 800;
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
+.hw-box-name {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  max-width: 172px;
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 1.2;
+}
+.hw-box-name > * {
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+.hw-box-name small {
+  font-size: 12px;
+  color: var(--ink-3);
 }
 .hw-box-item.lit {
   background: var(--accent-soft);
 }
+/* each card in the corner can be put away on its own step: a small x just out of its top right corner */
+.corner-card {
+  position: relative;
+}
+.card-hide {
+  position: absolute;
+  top: -8px;
+  right: -8px;
+  display: grid;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  border: 0;
+  border-radius: 999px;
+  background: #fff;
+  color: var(--ink);
+  box-shadow: 0 0 0 1.5px var(--ink);
+  cursor: pointer;
+  pointer-events: auto;
+  transition:
+    background 0.15s,
+    color 0.15s;
+}
+/* a finger needs more than the drawn 24 px */
+.card-hide::before {
+  content: "";
+  position: absolute;
+  inset: -8px;
+}
+.card-hide:hover {
+  background: var(--ink);
+  color: #fff;
+}
+/* in the cards' place once one is put away: brings back this step's cards */
+.cards-show {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 32px;
+  padding: 0 13px 0 11px;
+  border: 0;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.92);
+  box-shadow: 0 0 0 1.5px var(--ink);
+  font: inherit;
+  font-size: 13.5px;
+  font-weight: 700;
+  color: var(--ink);
+  cursor: pointer;
+  pointer-events: auto;
+}
+.cards-show:hover {
+  background: var(--accent-soft);
+}
 /* the manual's countersunk check beside a step's drawing (stage.ts keeps the drawing clear of it) */
-.sink-box svg {
+.sink-box > svg {
   display: block;
   width: 150px;
   height: auto;
@@ -907,7 +993,7 @@
   border-radius: 16px;
   box-shadow: inset 0 0 0 1.8px var(--ink);
 }
-.length-box svg {
+.length-box > svg {
   display: block;
   width: auto;
   height: 110px;
@@ -3108,19 +3194,47 @@ button.pic:disabled {
     font-size: 54px;
   }
   .hw-box {
-    padding: 6px 8px 4px;
+    padding: 4px;
   }
+  /* the right padding keeps the first name clear of the card's x */
   .hw-box-item {
-    min-width: 42px;
+    gap: 6px;
+    min-height: 30px;
+    padding: 1px 10px 1px 1px;
   }
-  .hw-box-item svg {
-    max-height: 28px;
-    max-width: 42px;
+  .hw-box-art {
+    width: 30px;
+    height: 26px;
   }
-  .sink-box svg {
+  .hw-box-art svg {
+    max-width: 30px;
+    max-height: 26px;
+  }
+  .hw-box-item b {
+    font-size: 13.5px;
+  }
+  /* a phone's drawing is small: the names stay short */
+  .hw-box-name {
+    max-width: 96px;
+    font-size: 12.5px;
+    line-height: 1.15;
+  }
+  .hw-box-name small {
+    font-size: 11px;
+  }
+  .card-hide {
+    width: 22px;
+    height: 22px;
+  }
+  .cards-show {
+    height: 30px;
+    padding: 0 11px 0 9px;
+    font-size: 12.5px;
+  }
+  .sink-box > svg {
     width: 112px;
   }
-  .length-box svg {
+  .length-box > svg {
     height: 82px;
   }
   .stage-ctl {
