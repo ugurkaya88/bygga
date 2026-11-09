@@ -1300,7 +1300,7 @@ export class Stage {
     // arrows for parts flying in
     const wanted: { d: string; o: number }[] = [];
     const arrowKeys = new Set<string>();
-    const wantedLabels = new Map<string, { x: number; y: number; text: string; sub?: string; o: number; lit: boolean }>();
+    const wantedLabels = new Map<string, { x: number; y: number; rot?: number; text: string; sub?: string; o: number; lit: boolean }>();
     if (m.kind === "step" && step) {
       const fade = this.opts.loop !== false && t > this.stepEnd + HOLD ? 1 - clamp01((t - this.stepEnd - HOLD) / FADE) : 1;
       for (const p of this.parts) {
@@ -1339,13 +1339,21 @@ export class Stage {
     if (m.kind === "layout" && this.labelLayer) {
       const counts = new Map<string, number>();
       this.parts.forEach((p) => counts.set(p.type.id, (counts.get(p.type.id) ?? 0) + 1));
+      // the layout lays every board with its long side along the root's x axis, so each label turns
+      // to that side's angle on screen and reads along the board
+      const along = new THREE.Vector3(1, 0, 0).applyQuaternion(this.root.quaternion).multiplyScalar(100);
       for (const p of this.parts) {
         if (!p.node.visible || wantedLabels.has(p.type.id) || p.type.extra) continue;
         const c = new THREE.Vector3();
         p.node.getWorldPosition(c);
         const sp = this.project(c);
+        const ep = this.project(c.clone().add(along));
+        let rot = Math.atan2(ep.y - sp.y, ep.x - sp.x);
+        // never upside down
+        if (rot > Math.PI / 2) rot -= Math.PI;
+        else if (rot < -Math.PI / 2) rot += Math.PI;
         const n = counts.get(p.type.id) ?? 1;
-        wantedLabels.set(p.type.id, { x: sp.x, y: sp.y, text: p.type.label, sub: n > 1 ? `${n}×` : undefined, o: 1, lit: this.highlight?.has(p.type.id) ?? false });
+        wantedLabels.set(p.type.id, { x: sp.x, y: sp.y, rot, text: p.type.label, sub: n > 1 ? `${n}×` : undefined, o: 1, lit: this.highlight?.has(p.type.id) ?? false });
       }
     }
     while (this.arrows.length < wanted.length) {
@@ -1382,7 +1390,7 @@ export class Stage {
         }
         const html = `<b>${esc(l.text)}</b>${l.sub ? `<span>${esc(l.sub)}</span>` : ""}`;
         if (el.innerHTML !== html) el.innerHTML = html;
-        el.style.transform = `translate(${l.x}px, ${l.y}px) translate(-50%, -50%) scale(${0.7 + 0.3 * l.o})`;
+        el.style.transform = `translate(${l.x}px, ${l.y}px) translate(-50%, -50%)${l.rot ? ` rotate(${l.rot.toFixed(4)}rad)` : ""} scale(${0.7 + 0.3 * l.o})`;
         el.style.opacity = String(l.o);
         el.classList.toggle("lit", l.lit);
       }
