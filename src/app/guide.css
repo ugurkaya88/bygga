@@ -213,7 +213,8 @@
     background 0.2s,
     box-shadow 0.2s;
 }
-.pill-btn.on {
+.pill-btn.on,
+.icon-btn.float.on {
   background: var(--accent);
   box-shadow: 0 0 0 1.5px var(--ink);
 }
@@ -3370,6 +3371,19 @@ button.pic:disabled {
 /* the smallest phones keep the question and let the button say the rest */
 @media (max-width: 400px) {
   .vo-more {
+    display: none;
+  }
+}
+
+/* below a 390 px phone the drawing's control row keeps to one line beside the hand button: resetting the view shows
+   its icon alone */
+@media (max-width: 380px) {
+  .stage-ctl .reset-view {
+    width: 36px;
+    padding: 0;
+    justify-content: center;
+  }
+  .stage-ctl .reset-view span {
     display: none;
   }
 }

@@ -19,6 +19,7 @@ import {
   FileText,
   Flag,
   Hammer,
+  Hand,
   House,
   Image,
   KeyRound,
@@ -89,6 +90,7 @@ export const IBox = icon(Package);
 export const ISparkle = icon(Sparkle);
 export const IVolume = icon(Volume2);
 export const IRotate = icon(RotateCw);
+export const IHand = icon(Hand);
 export const IHome = icon(House);
 export const IChevron = icon(ChevronRight);
 export const IChevronDown = icon(ChevronDown);

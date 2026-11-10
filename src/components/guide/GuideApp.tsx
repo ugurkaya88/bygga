@@ -18,7 +18,7 @@ import { HwArt } from "../art/Hardware";
 import { SinkCheck } from "../art/SinkCheck";
 import { ScrewCheck, checkScrews } from "../art/ScrewCheck";
 import { Helper } from "../art/Helper";
-import { ICheck, IClose, IEye, IGrid, IHelp, IMic, IPause, IPlay, IReplay, IRotate, IScan, ISound, ISoundOff, ISparkle } from "../art/Icons";
+import { ICheck, IClose, IEye, IGrid, IHand, IHelp, IMic, IPause, IPlay, IReplay, IRotate, IScan, ISound, ISoundOff, ISparkle } from "../art/Icons";
 import CoverPanel from "./CoverPanel";
 import ToolsPanel from "./ToolsPanel";
 import BeforePanel from "./BeforePanel";
@@ -425,6 +425,8 @@ function Guide({ plan, slug, via, ai, startStep, onOwnSteps }: { plan: Plan; slu
   const [introPlayed, setIntroPlayed] = useState(false);
   const [paused, setPaused] = useState(false);
   const [slow, setSlow] = useState(false);
+  // the hand button: a plain drag moves the view instead of turning it, from step to step until it is turned off
+  const [pan, setPan] = useState(false);
   const [moved, setMoved] = useState(false);
   const [stamp, setStamp] = useState(0);
   const [toast, setToast] = useState<{ id: number; text: string } | null>(null);
@@ -627,6 +629,7 @@ function Guide({ plan, slug, via, ai, startStep, onOwnSteps }: { plan: Plan; slu
         e.preventDefault();
         if (!e.repeat) back();
       } else if (e.key.toLowerCase() === "r") stage.current?.replay();
+      else if (e.key.toLowerCase() === "h" && !e.repeat) setPan((p) => !p);
       else if (e.key === "?") setHelp({});
       else if (e.key.toLowerCase() === "o") setOverview(true);
     };
@@ -943,6 +946,7 @@ function Guide({ plan, slug, via, ai, startStep, onOwnSteps }: { plan: Plan; slu
             highlight={highlight}
             paused={paused}
             speed={slow ? 0.5 : 1}
+            pan={pan && phase === "steps"}
             options={{ callout: true, interactive: true }}
             onReady={(h) => (stage.current = h)}
             onIntroDone={() => setIntroPlayed(true)}
@@ -1058,16 +1062,19 @@ function Guide({ plan, slug, via, ai, startStep, onOwnSteps }: { plan: Plan; slu
               <button className={"pill-btn float" + (slow ? " on" : "")} onClick={() => setSlow(!slow)} aria-pressed={slow}>
                 {t("guide.slow")}
               </button>
+              <button className={"icon-btn float" + (pan ? " on" : "")} onClick={() => setPan(!pan)} aria-pressed={pan} aria-label={t("guide.pan")} data-tip={t("guide.panTip")}>
+                <IHand />
+              </button>
               <AnimatePresence>
                 {moved && (
-                  <motion.button initial={{ opacity: 0, x: -8 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0 }} className="pill-btn float" onClick={() => stage.current?.resetView()}>
-                    <IRotate size={15} /> {t("guide.resetView")}
+                  <motion.button initial={{ opacity: 0, x: -8 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0 }} className="pill-btn float reset-view" onClick={() => stage.current?.resetView()} aria-label={t("guide.resetView")}>
+                    <IRotate size={15} /> <span>{t("guide.resetView")}</span>
                   </motion.button>
                 )}
               </AnimatePresence>
             </div>
           )}
-          {phase === "steps" && step === 0 && !moved && <span className="drag-hint">{t("guide.dragHint")}</span>}
+          {phase === "steps" && step === 0 && !moved && <span className="drag-hint">{t(pan ? "guide.panHint" : "guide.dragHint")}</span>}
           {phase === "parts" && <span className="sheet-caption">{t("guide.layoutCaption")}</span>}
           {voiceOn && phase === "steps" && (
             <div className="listening" role="status">

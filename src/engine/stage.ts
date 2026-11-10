@@ -82,6 +82,10 @@ interface HNode {
   holder: THREE.Group;
   inner: THREE.Group;
   parent?: PNode;
+  /** a cup hinge's arm (drawable.ts "arm"), which the player turns about a line along its z (Stage.poseArm) */
+  arm?: THREE.Object3D;
+  /** and the link from its knuckle to the arm, stretched between them */
+  link?: THREE.Object3D;
 }
 
 interface Xf {
@@ -137,6 +141,23 @@ function swung(fin: Xf, sw: Swing, f: number, out: Xf) {
 
 function swingOf(s: PartSwing): Swing {
   return { at: new THREE.Vector3(...s.at), axis: new THREE.Vector3(...s.axis).normalize(), angle: s.angle };
+}
+
+/** Whether a part is where it ends up in the build (Builder.add), not laid out or waiting beside it (Builder.stage). */
+function inPlace(it: PartItem, st: PartState) {
+  return st.pos.every((v, i) => Math.abs(v - it.final.pos[i]) < 0.5) && st.rot.every((v, i) => Math.abs(v - it.final.rot[i]) < 1e-3);
+}
+
+/** How far a cup hinge's arm is opened out on a door that is not on the build yet, as the manuals draw it. */
+const ARM_OPEN = Math.PI / 2;
+const armFrom: Xf = { p: new THREE.Vector3(), q: new THREE.Quaternion() };
+const armTo: Xf = { p: new THREE.Vector3(), q: new THREE.Quaternion() };
+const armV = new THREE.Vector3();
+/** A place `angle` radians about the line along `axis` through `at`, from the fitting's own frame. */
+function turnedAbout(at: THREE.Vector3, axis: THREE.Vector3, angle: number, out: Xf) {
+  out.q.setFromAxisAngle(axis, angle);
+  out.p.copy(at).sub(armV.copy(at).applyQuaternion(out.q));
+  return out;
 }
 
 export class Stage {
@@ -343,6 +364,10 @@ export class Stage {
   private finalXf = new Map<PNode, Xf>();
   /** where a door hung open is this frame, on its way shut */
   private swingXf: Xf = { p: new THREE.Vector3(), q: new THREE.Quaternion() };
+  /** the hinge line of a door hung open in the step being shown, in the frame of each cup hinge on it (Stage.poseArm) */
+  private armSwing = new Map<HNode, { at: THREE.Vector3; axis: THREE.Vector3 }>();
+  /** a plain drag (one finger, or the left button) moves the view instead of turning it: the player's hand button */
+  private panMode = false;
 
   /* ---------------- setup ---------------- */
 
@@ -426,7 +451,7 @@ export class Stage {
       const parent = it.parent ? this.byKey.get(it.parent) : undefined;
       (parent ? parent.node : this.root).add(holder);
       d.meshes.forEach((m) => (m.userData.ref = it.ref));
-      this.hws.push({ item: it, d, holder, inner, parent });
+      this.hws.push({ item: it, d, holder, inner, parent, arm: d.root.getObjectByName("arm"), link: d.root.getObjectByName("link") });
     }
     plan.steps.forEach((s, si) =>
       (s.marks ?? []).forEach((mk, i) => {
@@ -461,6 +486,7 @@ export class Stage {
   private clear() {
     this.stepXf.clear();
     this.finalXf.clear();
+    this.armSwing.clear();
     for (const p of this.parts) {
       this.root.remove(p.node);
       disposeDrawable(p.d);
@@ -622,6 +648,11 @@ export class Stage {
   setPaused(p: boolean) {
     this.paused = p;
   }
+  /** The hand button: while on, a plain drag moves the view (as the right button, shift or two fingers always do). */
+  setPanMode(on: boolean) {
+    this.panMode = on;
+    if (!this.pointers.size) this.renderer.domElement.style.cursor = on ? "grab" : "";
+  }
   setSpeed(s: number) {
     this.speed = s;
   }
@@ -660,6 +691,7 @@ export class Stage {
     this.sinkBox = false;
     this.lengthBox = { w: 0, h: 0 };
     this.stepXf.clear();
+    this.armSwing.clear();
     this.shiftFrom.set(0, 0, 0);
     this.shiftTo.set(0, 0, 0);
     this.shiftNow.set(0, 0, 0);
@@ -696,6 +728,21 @@ export class Stage {
         this.frameLocal.push(...this.corners(p, st.pos, st.rot));
         if (open) this.frameLocal.push(...p.corners.map((c) => c.clone().applyQuaternion(open.q).add(open.p)));
         if (st.step === s) end = Math.max(end, st.delay + PART_DUR + (st.spin ? 0.4 : 0) + (st.lift ? LIFT : 0) + (swing ? SWING_HOLD + SWING_DUR : 0));
+      }
+      // a door hung open: its hinge line in each of its cup hinges' own frame, where their arms turn back as it swings
+      const one = new THREE.Vector3(1, 1, 1);
+      for (const h of this.hws) {
+        const x = h.arm && h.parent ? this.stepXf.get(h.parent) : undefined;
+        if (!x?.swing) continue;
+        // the fitting as it rests once in (updateItems): turned by its spin and turn about its own y
+        const rest = new THREE.Quaternion().setFromAxisAngle(Y, -((h.item.spin ?? 0) * Math.PI * 2 + (h.item.turn ?? 0)));
+        const m = new THREE.Matrix4()
+          .compose(x.fin.p, x.fin.q, one)
+          .multiply(new THREE.Matrix4().compose(h.holder.position, h.holder.quaternion, one))
+          .multiply(new THREE.Matrix4().makeRotationFromQuaternion(rest))
+          .invert();
+        const q = x.fin.q.clone().multiply(h.holder.quaternion).multiply(rest).invert();
+        this.armSwing.set(h, { at: x.swing.at.clone().applyMatrix4(m), axis: x.swing.axis.clone().applyQuaternion(q) });
       }
       let first: HNode | undefined;
       for (const h of this.hws) {
@@ -1042,6 +1089,7 @@ export class Stage {
       else if (m.kind === "intro") vis = t > this.stepEnd - 0.7 && !!h.parent && !this.plan?.steps[it.step]?.wall;
       h.holder.visible = vis;
       if (!vis) continue;
+      if (h.arm) this.poseArm(h, sIdx, t);
       const isNew = m.kind === "step" && it.step === sIdx;
       if (isNew && it.pad) {
         this.padPose(h, t - it.delay);
@@ -1091,6 +1139,54 @@ export class Stage {
       }
       this.styleDrawable(mk.d, { opacity: (isNew ? clamp01(k * 5) * fadeOut : 1) * Math.min(1, wallOn), ink: false, tint: 0, width: 1 });
     }
+  }
+
+  /**
+   * A cup hinge's arm in step `s` (-1 outside the steps), `t` seconds in. While its door is not on the build yet (laid
+   * out, waiting beside it, or before the step that adds it) the arm is opened out about its knuckle, along the door's
+   * face and past its hinged edge, as the manuals draw it. A door hung open (PartState.swing) turns it back about the
+   * door's hinge line by as much as the door is open, so it stays on its plate while the door swings shut; on its way
+   * in, a door that lay with its hinges opened out brings them round to there. Otherwise the arm is shut, as drawn.
+   */
+  private poseArm(h: HNode, s: number, t: number) {
+    const arm = h.arm!;
+    const p = h.parent;
+    const x = s >= 0 && p ? this.stepXf.get(p) : undefined;
+    const knuckle = arm.userData.knuckle as THREE.Vector3;
+    // shut unless something below says otherwise
+    armTo.p.set(0, 0, 0);
+    armTo.q.identity();
+    if (x && p && !inPlace(p.item, x.st)) turnedAbout(knuckle, Z, ARM_OPEN, armTo);
+    else if (x && p && x.st.step === s) {
+      const { st, prev } = x;
+      const sw = this.armSwing.get(h);
+      const arrive = PART_DUR + (st.spin ? 0.4 : 0) + (st.lift ? LIFT : 0);
+      if (sw && x.swing) {
+        // as the door's own swing (updateItems): open until it has arrived and waited, then shut
+        const f = easeInOut(clamp01((t - st.delay - arrive - SWING_HOLD) / SWING_DUR));
+        turnedAbout(sw.at, sw.axis, -x.swing.angle * (1 - f), armTo);
+      }
+      const k = clamp01((t - st.delay) / arrive);
+      if (k < 1 && prev && !inPlace(p.item, prev)) {
+        turnedAbout(knuckle, Z, ARM_OPEN, armFrom);
+        const e = easeInOut(k);
+        armTo.p.lerpVectors(armFrom.p, armTo.p, e);
+        armTo.q.slerpQuaternions(armFrom.q, armTo.q, e);
+      }
+    }
+    arm.position.copy(armTo.p);
+    arm.quaternion.copy(armTo.q);
+    // the link reaches from the knuckle to the arm's pin wherever the arm is
+    const link = h.link;
+    if (!link) return;
+    const { from, to } = link.userData as { from: THREE.Vector3; to: THREE.Vector3 };
+    armV.copy(to).applyQuaternion(arm.quaternion).add(arm.position).sub(from);
+    const len = armV.length();
+    link.visible = len > 6;
+    if (!link.visible) return;
+    link.position.copy(from).addScaledVector(armV, 0.5);
+    link.quaternion.setFromUnitVectors(Y, armV.divideScalar(len));
+    link.scale.set(1, len, 1);
   }
 
   /** A stick-on glide got ready in front of its place, `u` seconds after it started (PAD): held turned over, flat face
@@ -1715,6 +1811,7 @@ export class Stage {
         this.pinch = { d: Math.max(1, Math.hypot(p1.x - p2.x, p1.y - p2.y)), zoom: this.userZoom, at: this.fromMiddle((p1.x + p2.x) / 2, (p1.y + p2.y) / 2) };
       }
       this.dragging = true;
+      if (this.panMode) c.style.cursor = "grabbing";
     });
     c.addEventListener("pointermove", (e) => {
       const prev = this.pointers.get(e.pointerId);
@@ -1734,12 +1831,13 @@ export class Stage {
         this.pinch.at = at;
       } else if (this.pointers.size === 1) {
         const dx = e.clientX - prev.x, dy = e.clientY - prev.y;
-        // the right or middle button, or shift with the left, moves the view: what is under the pointer stays under it
-        if (e.pointerType !== "touch" && ((e.buttons & 6) !== 0 || e.shiftKey)) {
+        // the right or middle button, or shift with the left, moves the view, and so does any drag with the hand
+        // button on: what is under the pointer stays under it
+        if (this.panMode || (e.pointerType !== "touch" && ((e.buttons & 6) !== 0 || e.shiftKey))) {
           const v = this.screenMm(dx, dy, this.userZoom);
           this.userPan.sub(v);
           this.panGoal.sub(v);
-          c.style.cursor = "move";
+          c.style.cursor = this.panMode ? "grabbing" : "move";
         } else {
           this.userAz -= dx * 0.0075;
           this.userEl += dy * 0.005;
@@ -1754,7 +1852,7 @@ export class Stage {
       this.pointers.delete(e.pointerId);
       if (this.pointers.size === 0) this.dragging = false;
       if (this.pointers.size < 2) this.pinch = null;
-      c.style.cursor = "";
+      c.style.cursor = this.panMode ? (this.pointers.size ? "grabbing" : "grab") : "";
     };
     c.addEventListener("pointerup", up);
     c.addEventListener("pointercancel", up);

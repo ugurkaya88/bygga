@@ -23,6 +23,7 @@ export default function StageView({
   onUserView,
   paused,
   speed,
+  pan,
   corner,
 }: {
   plan: Plan | null;
@@ -36,6 +37,8 @@ export default function StageView({
   onUserView?: (changed: boolean) => void;
   paused?: boolean;
   speed?: number;
+  /** a plain drag moves the view instead of turning it (Stage.setPanMode) */
+  pan?: boolean;
   /** What the page's cards cover over the drawing's top left, in px (Stage.setCorner); the drawing keeps clear of it. */
   corner?: { w: number; h: number } | null;
 }) {
@@ -46,9 +49,9 @@ export default function StageView({
     cbs.current = { onIntroDone, onHover, onUserView, onReady };
   });
   const modeKey = JSON.stringify(mode);
-  const latest = useRef({ plan, mode, highlight, corner });
+  const latest = useRef({ plan, mode, highlight, corner, pan });
   useEffect(() => {
-    latest.current = { plan, mode, highlight, corner };
+    latest.current = { plan, mode, highlight, corner, pan };
   });
 
   useEffect(() => {
@@ -63,8 +66,9 @@ export default function StageView({
         onUserView: (c) => cbs.current.onUserView?.(c),
       });
       stage.current = s;
-      const { plan: p, mode: m, highlight: h, corner: box } = latest.current;
+      const { plan: p, mode: m, highlight: h, corner: box, pan: hand } = latest.current;
       s.setCorner(box ?? null);
+      s.setPanMode(!!hand);
       if (p) {
         s.setPlan(p);
         s.setMode(m);
@@ -107,6 +111,9 @@ export default function StageView({
   useEffect(() => {
     stage.current?.setPaused(!!paused);
   }, [paused]);
+  useEffect(() => {
+    stage.current?.setPanMode(!!pan);
+  }, [pan]);
   useEffect(() => {
     stage.current?.setCorner(corner ?? null);
   }, [corner]);

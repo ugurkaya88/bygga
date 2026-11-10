@@ -265,7 +265,7 @@ function panHead(d: Drawable, r: number, h: number, parent: THREE.Object3D) {
 
 const inkCache = new Map<string, LineSegmentsGeometry>();
 /** Thin lines drawn on a fitting's face, as the manuals draw a countersunk hole's rim or a keyhole: closed loops. */
-function inkLoops(d: Drawable, key: string, make: () => THREE.Vector3[][]) {
+function inkLoops(d: Drawable, key: string, make: () => THREE.Vector3[][], parent: THREE.Object3D = d.root) {
   let g = inkCache.get(key);
   if (!g) {
     const pts: number[] = [];
@@ -278,7 +278,7 @@ function inkLoops(d: Drawable, key: string, make: () => THREE.Vector3[][]) {
     inkCache.set(key, g);
   }
   const lm = lineMaterial(1);
-  d.root.add(new LineSegments2(g, lm));
+  parent.add(new LineSegments2(g, lm));
   d.thin.push(lm);
 }
 
@@ -371,6 +371,14 @@ export function hwDrawable(kind: HwKind, len: number, dia: number) {
       // The arm's inside top (x = 6) rests on a 10 mm plate when the cup is 4 mm in from the panel's inner face (a
       // cup 22 mm from the edge of a door over an 18 mm side); with the cup further in, its sides straddle the
       // plate's body.
+      // The arm, with its pin, adjusting screw and keyhole, is a group of its own ("arm") that the player turns
+      // about a line along z (stage.ts poseArm): opened out on a loose door, as the manuals draw it, or held on its
+      // plate while the door swings. Left alone it is shut, as here.
+      const arm = new THREE.Group();
+      arm.name = "arm";
+      // where it folds when opened out on a loose door: over the cup, high enough that the arm's sides clear the rim
+      arm.userData = { knuckle: new THREE.Vector3(1.5, 6, 0) };
+      d.root.add(arm);
       addSolid(d, "hg:cup", cyl(17.5, 11.9, 32), metal, { hull: "cyl", position: [0, -5.55, 0] });
       addSolid(
         d,
@@ -393,23 +401,37 @@ export function hwDrawable(kind: HwKind, len: number, dia: number) {
       addSolid(d, "hg:face", () => slab(flange(0.7, 3.6), 1.4, "x", "z", 1.6), metal);
       // the knuckle going down into the cup, the arm's front part over it with the pin, and the arm
       addSolid(d, "hg:knuckle", () => new THREE.BoxGeometry(7, 6, 13), metal, { position: [1.5, -1, 0] });
-      addSolid(d, "hg:front", () => slab(sheet([[-8, -3], [-8, 6.6], [8, 6.6], [8, -3]], 1.2), 21, "z", "x", 1), metal);
-      addSolid(d, "hg:arm", () => slab(sheet([[-8, -0.4], [-8, 6.6], [8, 6.6], [8, -0.4]], 1.2), 28, "z", "x", 22), metal);
-      addSolid(d, "hg:pin", () => new THREE.CylinderGeometry(2.2, 2.2, 18.4, 16).rotateX(Math.PI / 2), metal, { hull: "radial", position: [1.5, 4, 0] });
+      // the link from the knuckle to the arm's pin, a unit long along y for the player to stretch between the two
+      // (stage.ts poseArm): hidden while they are together, it shows when the arm is held on its plate away from a
+      // door turned open
+      const link = new THREE.Group();
+      link.name = "link";
+      link.visible = false;
+      link.userData = { from: new THREE.Vector3(1.5, 1, 0), to: new THREE.Vector3(1.5, 4, 0) };
+      d.root.add(link);
+      addSolid(d, "hg:link", () => new THREE.BoxGeometry(4, 1, 10), metal, { parent: link });
+      addSolid(d, "hg:front", () => slab(sheet([[-8, -3], [-8, 6.6], [8, 6.6], [8, -3]], 1.2), 21, "z", "x", 1), metal, { parent: arm });
+      addSolid(d, "hg:arm", () => slab(sheet([[-8, -0.4], [-8, 6.6], [8, 6.6], [8, -0.4]], 1.2), 28, "z", "x", 22), metal, { parent: arm });
+      addSolid(d, "hg:pin", () => new THREE.CylinderGeometry(2.2, 2.2, 18.4, 16).rotateX(Math.PI / 2), metal, { hull: "radial", position: [1.5, 4, 0], parent: arm });
       const adj = new THREE.Group();
       adj.position.set(7.2, 14, 0);
       adj.rotation.z = -Math.PI / 2;
-      d.root.add(adj);
+      arm.add(adj);
       panHead(d, 3.2, 1.4, adj);
-      inkLoops(d, "hg:keyhole", () => {
-        // a slot along the arm for the plate screw's shank, opening into a round hole its head goes through
-        const a = Math.atan2(2.8, 39.1 - 42.5);
-        const k = new THREE.Path().moveTo(39.1, -2.8).lineTo(33.6, -2.8);
-        k.absarc(33.6, 0, 2.8, -Math.PI / 2, Math.PI / 2, true);
-        k.lineTo(39.1, 2.8);
-        k.absarc(42.5, 0, 4.4, a, -a, true);
-        return [k.getPoints(10).map((p) => new THREE.Vector3(7.5, p.x, p.y))];
-      });
+      inkLoops(
+        d,
+        "hg:keyhole",
+        () => {
+          // a slot along the arm for the plate screw's shank, opening into a round hole its head goes through
+          const a = Math.atan2(2.8, 39.1 - 42.5);
+          const k = new THREE.Path().moveTo(39.1, -2.8).lineTo(33.6, -2.8);
+          k.absarc(33.6, 0, 2.8, -Math.PI / 2, Math.PI / 2, true);
+          k.lineTo(39.1, 2.8);
+          k.absarc(42.5, 0, 4.4, a, -a, true);
+          return [k.getPoints(10).map((p) => new THREE.Vector3(7.5, p.x, p.y))];
+        },
+        arm,
+      );
       break;
     }
     case "glide":

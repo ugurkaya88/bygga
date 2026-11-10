@@ -201,7 +201,8 @@
   font-weight: 700;
 }
 [data-brand="rehber"] .pill-btn.on,
-[data-brand="rehber"] .pill-btn.float.on {
+[data-brand="rehber"] .pill-btn.float.on,
+[data-brand="rehber"] .icon-btn.float.on {
   background: var(--accent-text);
   color: #fff;
   box-shadow: none;
