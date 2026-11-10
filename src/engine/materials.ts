@@ -12,11 +12,22 @@ export const FACE: Record<string, THREE.Color> = Object.fromEntries(Object.entri
 /** the flat shading steps of faces turned away from the light (the shader's uShade) */
 const SHADE = new THREE.Vector3(...PALETTE.shade);
 
+/**
+ * How far back a face is pushed at most (mm) so the edge lines and hole marks on it draw over it. The push grows with
+ * how steeply the face turns away (as glPolygonOffset's factor does), which at a far zoom on a face seen edge on can
+ * reach many mm: enough to let a cam 5 mm under an 18 mm board's face, or the holes on its far face, show through it.
+ * Capped in mm, nothing behind a face shows through at any zoom, and a 3 mm back panel still hides its far side.
+ */
+const FACE_PUSH_MM = 1.5;
+
 const faceVert = /* glsl */ `
 varying vec3 vN;
+varying float vPushMax;
 void main() {
   vN = normalize(mat3(modelMatrix) * normal);
   gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+  // an orthographic camera's depth is linear: window depth per mm is half the projection's z scale
+  vPushMax = isOrthographic ? abs(projectionMatrix[2][2]) * 0.5 * ${FACE_PUSH_MM.toFixed(2)} : 1.0;
 }`;
 
 const faceFrag = /* glsl */ `
@@ -26,7 +37,11 @@ uniform float uTintAmt;
 uniform float uOpacity;
 uniform vec3 uShade;
 varying vec3 vN;
+varying float vPushMax;
 void main() {
+  // pushed back by its depth slope across a pixel, as polygonOffset(1, 1) would, but never more than FACE_PUSH_MM
+  float z = gl_FragCoord.z;
+  gl_FragDepth = z + min(max(abs(dFdx(z)), abs(dFdy(z))), vPushMax) + 2e-7;
   vec3 n = normalize(vN);
   vec3 L = normalize(vec3(-0.35, 1.0, 0.55));
   float d = dot(n, L);
@@ -46,9 +61,6 @@ export function faceMaterial(color: THREE.Color) {
     },
     vertexShader: faceVert,
     fragmentShader: faceFrag,
-    polygonOffset: true,
-    polygonOffsetFactor: 1,
-    polygonOffsetUnits: 1,
     transparent: true,
   });
 }
