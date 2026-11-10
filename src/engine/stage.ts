@@ -808,7 +808,7 @@ export class Stage {
         }
         const ht = plan.hardware.find((x) => x.id === first!.item.ref)!;
         const size =
-          ht.kind === "runner" ? 55 : ht.kind === "hinge" || ht.kind === "hingePlate" || ht.kind === "cornerFoot" ? 55 : ht.kind === "bracket" ? 50 : ht.kind === "plate" ? 55 : ht.kind === "knob" || ht.kind === "handle" ? 50 : Math.max(17, Math.min(55, Math.max(ht.len, ht.dia * 2) * 0.72));
+          ht.kind === "runner" ? 55 : ht.kind === "hinge" || ht.kind === "hingePlate" ? 55 : ht.kind === "cornerFoot" ? Math.max(55, ht.dia * 0.55) : ht.kind === "bracket" ? 50 : ht.kind === "plate" ? 55 : ht.kind === "knob" || ht.kind === "handle" ? 50 : Math.max(17, Math.min(55, Math.max(ht.len, ht.dia * 2) * 0.72));
         // a glide got ready in front of its place: the circle looks halfway out, wide enough for both
         const pad = !!first.item.pad;
         if (pad) loc.addScaledVector(dir, -PAD_HOVER / 2);

@@ -215,7 +215,9 @@ function defFor(f: CustomFix, thick?: number): HwDef {
     }
   })();
   const len = f.len && f.len > 2 && f.len < 400 ? Math.round(f.len) : base.kind === "screw" && thick ? Math.round(Math.min(70, Math.max(14, thick + 16)) / 2) * 2 : base.len;
-  const dia = f.dia && f.dia > 0.8 && f.dia < 60 ? Math.round(f.dia * 10) / 10 : base.dia;
+  // a corner foot's dia is the length of its legs along the edges, which can be well past the 60 mm other kinds stop at
+  const maxDia = base.kind === "cornerFoot" ? 200 : 60;
+  const dia = f.dia && f.dia > 0.8 && f.dia < maxDia ? Math.round(f.dia * 10) / 10 : base.dia;
   return { ...base, len, dia, ...(f.name ? { name: f.name } : {}), ...(f.included ? { notIncluded: false } : {}) };
 }
 
@@ -768,10 +770,12 @@ function planFits(f: CustomFix, contacts: Contact[], fresh: Node[], placed: Node
       ];
       for (const [cx, cz] of corners.slice(0, count)) {
         let best: { n: Node; p: Vec3; d: number } | null = null;
+        // a big corner foot's centroid sits a third of its legs in from the corner, so it stays under the board
+        const inset = f.kind === "cornerFoot" && f.dia && f.dia < 200 ? Math.max(25, f.dia / 3) : 25;
         for (const n of floor) {
           // a strip lies along the depth, its long side clear of the corner
           const strip = f.kind === "glideStrip";
-          const ix = strip ? Math.min(10, ext(n.box, 0) / 2) : Math.min(25, ext(n.box, 0) / 4), iz = strip ? Math.min(35, ext(n.box, 2) / 2) : Math.min(25, ext(n.box, 2) / 4);
+          const ix = strip ? Math.min(10, ext(n.box, 0) / 2) : Math.min(inset, ext(n.box, 0) / 4), iz = strip ? Math.min(35, ext(n.box, 2) / 2) : Math.min(inset, ext(n.box, 2) / 4);
           const p: Vec3 = [Math.min(n.box.max[0] - ix, Math.max(n.box.min[0] + ix, cx)), 0, Math.min(n.box.max[2] - iz, Math.max(n.box.min[2] + iz, cz))];
           const d = Math.hypot(p[0] - cx, p[2] - cz);
           if (!best || d < best.d) best = { n, p, d };
