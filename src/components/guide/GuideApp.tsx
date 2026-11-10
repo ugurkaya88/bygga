@@ -555,6 +555,8 @@ function Guide({ plan, slug, via, ai, startStep, onOwnSteps }: { plan: Plan; slu
     setPhase(p);
     setReached((r) => Math.max(r, PHASES.indexOf(p)));
     if (s !== undefined) {
+      // a step paused here doesn't keep the next one still: each step comes up playing from its start
+      setPaused(false);
       setStep(s);
       setMaxStep((m) => Math.max(m, s));
       if (p === "steps") setSeen((x) => (x.includes(s) ? x : [...x, s]));
