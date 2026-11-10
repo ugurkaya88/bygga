@@ -198,6 +198,9 @@ export interface CustomFix {
   // angle points to local -x -z from its centroid (world +x -z with dir [0, 1, 0]); twist pi/2 turns it to -x -z.
   twist?: number;
   pad?: boolean; // a glideStrip whose adhesive pads come on their own sheet: shown getting its pad and the pad's backing peeled before it is pressed on
+  // cams: false presses them in open (arrow toward the cam bolt) and leaves them unturned; each is turned in the first
+  // later step that has its board and its cam bolt's board both in place, or in a later step that names either in `lock`
+  turn?: boolean;
 }
 
 export interface CustomStep {
@@ -222,6 +225,7 @@ export interface CustomStep {
   shift?: Vec3; // where the whole build stands in this step, moved from its place (mm): pulled away from the wall to drill, say. It moves there from where the step before left it; fittings in the wall stay put
   marks?: Mark[]; // pencil lines and drilled holes on the wall, drawn in this step and kept while the wall shows
   sub?: string[]; // the manual's small numbered pictures within the step (peel the tape, stick it on, press it down), listed in order
+  lock?: string[]; // cams pressed in earlier (CustomFix.turn false) in these parts, or with their cam bolts in them, are turned in this step instead of the step that joins them (never before it)
 }
 
 /** A pencil line `len` mm long (along local x, turned by `twist` about `dir`), or a round mark `dot` mm across (a drilled hole), on the surface at `at` that `dir` points into (the wall by default). */
@@ -424,6 +428,9 @@ export interface HwItem {
   scale?: number;
   preset?: boolean;
   pad?: boolean; // a stick-on glide got ready first: its pad stuck on and the backing peeled, then turned over and pressed on
+  // a cam pressed in open in `step` (CustomFix.turn false): its opening faces `open` (the parent's frame, toward its cam
+  // bolt) until step `lock.step` turns it by `turn`, `lock.delay` seconds in
+  lock?: { step: number; delay: number; open: Vec3 };
 }
 
 export type Item = PartItem | HwItem;

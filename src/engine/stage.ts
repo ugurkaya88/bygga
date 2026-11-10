@@ -264,7 +264,7 @@ export class Stage {
   private stack = new Map<string, Xf>();
   private layout = new Map<string, Xf>();
   /** The close-up: what it looks at, when it comes in, and whether it shows a push in and a turn. */
-  private focus?: { local: THREE.Vector3; dir: THREE.Vector3; size: number; delay: number; turn?: number; spin?: number; still?: boolean; pad?: boolean };
+  private focus?: { local: THREE.Vector3; dir: THREE.Vector3; size: number; delay: number; turn?: number; spin?: number; still?: boolean; pad?: boolean; lock?: boolean }; // lock: a cam pressed in earlier, only turned now (from delay)
   private marks: MNode[] = [];
   /** Where the whole build stands this step, moved from its place: from where the step before left it, to here. */
   private shiftFrom = new THREE.Vector3();
@@ -447,7 +447,12 @@ export class Stage {
       holder.position.set(...it.pos);
       const dir = new THREE.Vector3(...it.dir).normalize();
       holder.quaternion.setFromUnitVectors(new THREE.Vector3(0, -1, 0), dir);
-      if (it.twist) holder.quaternion.premultiply(new THREE.Quaternion().setFromAxisAngle(dir, it.twist));
+      if (it.lock) {
+        // a cam pressed in open: its arrow (the drawing's +x) points at its opening, toward the cam bolt
+        const x = new THREE.Vector3(1, 0, 0).applyQuaternion(holder.quaternion);
+        const open = new THREE.Vector3(...it.lock.open).projectOnPlane(dir).normalize();
+        holder.quaternion.premultiply(new THREE.Quaternion().setFromAxisAngle(dir, Math.atan2(dir.dot(x.clone().cross(open)), x.dot(open))));
+      } else if (it.twist) holder.quaternion.premultiply(new THREE.Quaternion().setFromAxisAngle(dir, it.twist));
       const parent = it.parent ? this.byKey.get(it.parent) : undefined;
       (parent ? parent.node : this.root).add(holder);
       d.meshes.forEach((m) => (m.userData.ref = it.ref));
@@ -745,11 +750,19 @@ export class Stage {
         this.armSwing.set(h, { at: x.swing.at.clone().applyMatrix4(m), axis: x.swing.axis.clone().applyQuaternion(q) });
       }
       let first: HNode | undefined;
+      let firstAt = Infinity;
+      let locks = false;
       for (const h of this.hws) {
+        const lk = h.item.lock;
+        // a cam pressed in earlier and turned now: its turn is this step's work too, and can be the close-up
+        if (lk?.step === s) {
+          end = Math.max(end, lk.delay + CAM_TURN);
+          if (lk.delay < firstAt) [first, firstAt, locks] = [h, lk.delay, true];
+        }
         if (h.item.step !== s) continue;
-        const dur = h.item.pad ? PAD.dur : HW_DUR + (h.item.turn ? CAM_TURN : 0);
+        const dur = h.item.pad ? PAD.dur : HW_DUR + (h.item.turn && !lk ? CAM_TURN : 0);
         end = Math.max(end, h.item.delay + dur);
-        if (h.item.travel > 0 && (!first || h.item.delay < first.item.delay)) first = h;
+        if (h.item.travel > 0 && h.item.delay < firstAt) [first, firstAt, locks] = [h, h.item.delay, false];
       }
       const newMarks = this.marks.filter((mk) => mk.step === s);
       if (newMarks.length) end = Math.max(end, this.markStart + (newMarks.length - 1) * MARK_GAP + MARK_DUR);
@@ -776,6 +789,15 @@ export class Stage {
       if (first && this.callout) {
         const loc = new THREE.Vector3(...first.item.pos);
         const dir = new THREE.Vector3(...first.item.dir).normalize();
+        // a cam pressed in open: the circle takes in the edge of its board that its opening faces, where the bolt comes in
+        let reach = 0;
+        if (first.item.lock && !locks && first.parent) {
+          const o = new THREE.Vector3(...first.item.lock.open).normalize();
+          const half = new THREE.Vector3(...first.parent.type.size).multiplyScalar(0.5);
+          let r = Infinity;
+          for (const k of ["x", "y", "z"] as const) if (Math.abs(o[k]) > 1e-3) r = Math.min(r, (Math.sign(o[k]) * half[k] - loc[k]) / o[k]);
+          if (r > 0 && r < 80) reach = r;
+        }
         if (first.parent) {
           const { st } = this.stateAt(first.parent, s);
           if (st) {
@@ -790,7 +812,9 @@ export class Stage {
         // a glide got ready in front of its place: the circle looks halfway out, wide enough for both
         const pad = !!first.item.pad;
         if (pad) loc.addScaledVector(dir, -PAD_HOVER / 2);
-        this.focus = { local: loc, dir, size: pad ? 62 : size, delay: first.item.delay, turn: first.item.turn, spin: first.item.spin, pad: pad || undefined };
+        // a cam pressed in open is only pushed in in its own step: its turn shows in its lock step
+        const turn = first.item.lock && !locks ? undefined : first.item.turn;
+        this.focus = { local: loc, dir, size: pad ? 62 : reach ? Math.max(size, reach + 12) : size, delay: firstAt, turn, spin: first.item.spin, pad: pad || undefined, lock: locks || undefined };
       } else if (newMarks.length && this.callout) {
         // a step that only marks the wall shows its first mark close up, drawn on
         const mk = newMarks[0];
@@ -1091,6 +1115,10 @@ export class Stage {
       if (!vis) continue;
       if (h.arm) this.poseArm(h, sIdx, t);
       const isNew = m.kind === "step" && it.step === sIdx;
+      // a cam pressed in open stays unturned until its lock step, where it turns; past that, and out of the steps, it is turned
+      const lk = it.lock;
+      const locking = !!lk && m.kind === "step" && lk.step === sIdx;
+      const turn = !lk || m.kind !== "step" || sIdx > lk.step ? (it.turn ?? 0) : locking ? (it.turn ?? 0) * easeInOut(clamp01((t - lk.delay) / CAM_TURN)) : 0;
       if (isNew && it.pad) {
         this.padPose(h, t - it.delay);
         this.styleDrawable(h.d, { opacity: clamp01((t - it.delay) / 0.15) * fadeOut, ink: true, tint: 0, width: 1.6 });
@@ -1099,18 +1127,18 @@ export class Stage {
         const e = easeInOut(k);
         h.inner.position.set(0, it.travel * (1 - e), 0);
         let ang = (it.spin ?? 0) * Math.PI * 2 * e;
-        if (it.turn) ang += it.turn * easeInOut(clamp01((t - it.delay - HW_DUR) / CAM_TURN));
+        if (it.turn && !lk) ang += it.turn * easeInOut(clamp01((t - it.delay - HW_DUR) / CAM_TURN));
         // the holder's -Y points into the material, so turning clockwise as seen from outside is a negative angle about Y
         h.inner.quaternion.setFromAxisAngle(Y, -ang);
         const op = clamp01((t - it.delay) / 0.15) * fadeOut;
         this.styleDrawable(h.d, { opacity: op, ink: true, tint: 0, width: 1.6 });
       } else {
         h.inner.position.set(0, 0, 0);
-        h.inner.quaternion.setFromAxisAngle(Y, -((it.spin ?? 0) * Math.PI * 2 + (it.turn ?? 0)));
+        h.inner.quaternion.setFromAxisAngle(Y, -((it.spin ?? 0) * Math.PI * 2 + turn));
         if (it.pad) this.padPose(h, PAD.dur);
         const op = m.kind === "intro" ? clamp01((t - this.stepEnd + 0.7) / 0.5) : 1;
         const lit = this.highlight?.has(it.ref) ?? false;
-        this.styleDrawable(h.d, { opacity: op, ink: isNew || lit || m.kind !== "step", tint: lit ? 0.8 : 0, width: lit ? 1.7 : 1.25 });
+        this.styleDrawable(h.d, { opacity: op, ink: isNew || locking || lit || m.kind !== "step", tint: lit ? 0.8 : 0, width: lit ? 1.7 : 1.25 });
       }
     }
 
@@ -1777,11 +1805,11 @@ export class Stage {
     const b = proj(world.clone().addScaledVector(dirW, -half * 0.45));
     let html = "";
     const op1 = t < a0 - 0.25 ? 0 : k < 1 ? 1 : clamp01(1 - (t - a0 - HW_DUR) * 2);
-    if (!f.still && Math.hypot(b.x - a.x, b.y - a.y) > 18) html += `<path class="arrow" style="opacity:${op1}" d="${arrowPath(a, b, 0.9)}"/>`;
+    if (!f.still && !f.lock && Math.hypot(b.x - a.x, b.y - a.y) > 18) html += `<path class="arrow" style="opacity:${op1}" d="${arrowPath(a, b, 0.9)}"/>`;
     const turning = (f.turn ?? 0) > 0 || (f.spin ?? 0) > 0;
     if (turning) {
       const c = proj(world);
-      const tk = f.turn ? clamp01((t - f.delay - HW_DUR) / CAM_TURN) : k;
+      const tk = f.turn ? clamp01((t - f.delay - (f.lock ? 0 : HW_DUR)) / CAM_TURN) : k;
       const op2 = f.turn ? (tk > 0 ? 1 : 0) : 1;
       html += `<path class="arrow turn" style="opacity:${op2}" d="${arcArrow(c.x, c.y, Math.min(34, s * 0.2), -2.4 + tk * 0.4, 0.9 + tk * 0.4)}"/>`;
     }

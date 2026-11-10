@@ -103,7 +103,7 @@ export function hwSpecText(kind: HwKind, len: number, dia: number) {
   }
 }
 
-const DUR = { part: 0.95, hw: 0.6, lift: 0.6, pad: 4.0, swing: 1.5 }; // lift: the extra for a part lifted over from where it waited (stage.ts LIFT); pad: a glide got ready and pressed on (stage.ts PAD_DUR); swing: a door held open, then swung shut (stage.ts SWING_HOLD + SWING_DUR)
+const DUR = { part: 0.95, hw: 0.6, lift: 0.6, pad: 4.0, swing: 1.5, turn: 0.7 }; // lift: the extra for a part lifted over from where it waited (stage.ts LIFT); pad: a glide got ready and pressed on (stage.ts PAD_DUR); swing: a door held open, then swung shut (stage.ts SWING_HOLD + SWING_DUR); turn: a cam turned to lock (stage.ts CAM_TURN)
 
 export interface StepDef {
   title: string;
@@ -137,6 +137,7 @@ export interface FitOpts {
   mateHole?: number;
   scale?: number;
   pad?: boolean; // a stick-on glide that gets its pad and has the backing peeled before it goes on (stage.ts PAD_DUR)
+  press?: boolean; // a cam pressed in open and left unturned: a later step turns it (PlanBuilder.lock)
 }
 
 export class PlanBuilder {
@@ -313,7 +314,7 @@ export class PlanBuilder {
     }
     if (o.mate) this.hole(o.mate, o.at, o.dir, o.mateHole ?? Math.max(holeR(def), 3));
     const travel = o.travel ?? defaultTravel(def);
-    const extra = def.kind === "cam" ? 0.7 : o.spin ? 0.35 : o.pad ? DUR.pad - DUR.hw : 0;
+    const extra = def.kind === "cam" ? (o.press ? 0 : DUR.turn) : o.spin ? 0.35 : o.pad ? DUR.pad - DUR.hw : 0;
     const it: HwItem = {
       key,
       kind: "hw",
@@ -342,6 +343,18 @@ export class PlanBuilder {
     const keys = list.map((o) => this.fit(def, o));
     this.gap = g;
     return keys;
+  }
+
+  /**
+   * A cam pressed in open in an earlier step (FitOpts.press) is turned to lock in this one. `open` is the way its
+   * opening faced until now (assembled frame), toward its cam bolt.
+   */
+  lock(key: string, open: Vec3) {
+    const it = this.map.get(key);
+    if (!it || it.kind !== "hw") throw new Error("not a fitting " + key);
+    const p = it.parent ? this.partItem(it.parent) : undefined;
+    const r = (n: number) => Math.round(n * 1e4) / 1e4 || 0;
+    it.lock = { step: this.step_.n, delay: this.slot(DUR.turn), open: (p ? unrotate(open, p.final.rot) : open).map(r) as Vec3 };
   }
 
   /** Hardware already in place on a part (e.g. the 2nd and 3rd drawer): appears with the part, no animation. */
@@ -389,7 +402,8 @@ export class PlanBuilder {
       if (s.minutes) return s.minutes;
       if (s.quiet) return 1.6;
       const parts = this.items.filter((i) => i.kind === "part" && i.states[0]?.step === s.n).length + this.items.filter((i) => i.kind === "part" && i.states.length > 1 && i.states.some((x, k) => k > 0 && x.step === s.n)).length * 0.5;
-      const hws = this.items.filter((i) => i.kind === "hw" && i.step === s.n && !i.preset).length;
+      // a cam pressed in earlier and turned now is this step's work as well
+      const hws = this.items.filter((i) => i.kind === "hw" && ((i.step === s.n && !i.preset) || i.lock?.step === s.n)).length;
       return (0.8 + parts * 0.6 + hws * 0.12) * (s.repeat ?? 1);
     });
     const total = weights.reduce((a, b) => a + b, 0) || 1;

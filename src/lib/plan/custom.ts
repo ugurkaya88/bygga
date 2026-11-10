@@ -1,7 +1,7 @@
 import type { CustomFix, CustomPart, CustomStep, HwItem, HwKind, PartMaterial, PartSwing, Pose, ProductSpec, StepKind, ToolId, Vec3, WarnId } from "../types";
 import { t } from "../i18n";
 import { HW, PlanBuilder, type FitOpts, type HwDef } from "./builder";
-import { POSE_EULER, rotate, unrotate } from "./math";
+import { POSE_EULER, add, mul, rotate, sub, toLocal, unrotate } from "./math";
 
 /**
  * Builds a guide from a product someone scanned from their own manual.
@@ -28,6 +28,8 @@ interface Contact {
 
 const AXES = [0, 1, 2] as const;
 const PRE: HwKind[] = ["dowel", "camScrew", "pin", "legScrew", "plate", "hingePlate"];
+// a cam pressed in open (CustomFix.turn false) goes in before the parts are joined, like the fittings above
+const isPre = (f: CustomFix) => PRE.includes(f.kind) || (f.kind === "cam" && f.turn === false);
 
 export function boxOf(p: { size: Vec3; pos: Vec3; rot?: Vec3 }): Box {
   if (p.rot && p.rot.some((r) => r)) {
@@ -312,6 +314,9 @@ export function buildCustom(b: PlanBuilder, s: ProductSpec) {
   const addedAfter = (n: Node, si: number) => steps.slice(si + 1).some((x) => x.add?.includes(n.id));
   const aside = new Set<Node>();
   let pose: Pose = "+y";
+  // cams pressed in open, waiting for the step that turns them
+  let pressed: Pressed[] = [];
+  const byKey = new Map([...nodes.values()].map((n) => [n.key, n]));
 
   steps.forEach((st, si) => {
     const adds = (st.add ?? []).map((id) => nodes.get(id)).filter((n): n is Node => !!n && !isPlaced(n));
@@ -319,7 +324,18 @@ export function buildCustom(b: PlanBuilder, s: ProductSpec) {
     const nextPose = st.pose ?? pose;
     const turned = nextPose !== pose;
     pose = nextPose;
-    const kind: StepKind = st.kind ?? (adds.length
+    // cams pressed in earlier that this step turns: the parts they hold are both in place now and no later step names
+    // them in `lock`, or this step names them
+    const inPlace = (n: Node) => isPlaced(n) || adds.includes(n);
+    const due: (ReturnType<typeof camJoint> & { cam: Pressed })[] = [];
+    for (const c of pressed) {
+      const j = camJoint(b, c, byKey, nodes);
+      const names = (x: CustomStep) => !!x.lock?.some((id) => id === c.host.id || id === j.other?.id);
+      if (j.other && !(inPlace(c.host) && inPlace(j.other))) continue;
+      if (names(st) || (j.other && !steps.slice(si + 1).some(names))) due.push({ ...j, cam: c });
+    }
+    pressed = pressed.filter((c) => !due.some((d) => d.cam === c));
+    const kind: StepKind = st.kind ?? (!fixes.length && due.length ? "cams" : adds.length
       ? fixes.length
         ? (KIND_OF[fixes.find((f) => !PRE.includes(f.kind))?.kind ?? fixes[0].kind] ?? "join")
         : "join"
@@ -332,7 +348,8 @@ export function buildCustom(b: PlanBuilder, s: ProductSpec) {
           : "general");
     const tools = new Set<ToolId>(st.tools ?? []);
     for (const f of fixes) {
-      const t = TOOLS_OF[f.kind];
+      // a cam pressed in by hand needs no screwdriver till it is turned
+      const t = f.kind === "cam" && f.turn === false ? undefined : TOOLS_OF[f.kind];
       // hex bolts tightened with the spanner: a step that names the spanner doesn't also need the Allen key
       if (t && !(t === "allen" && tools.has("wrench"))) tools.add(t);
     }
@@ -384,12 +401,12 @@ export function buildCustom(b: PlanBuilder, s: ProductSpec) {
         const soon = future.length ? pairs([...placed, ...future], (x, y) => (future.includes(x) || future.includes(y)) && hits(x, y)) : [];
         const recent = lastAdded.length ? lastAdded : placed;
         const made = pairs(placed, (x, y) => (targets.size ? hits(x, y) : recent.includes(x) || recent.includes(y)));
-        const jointsFor = (f: CustomFix) => (adds.length ? now : PRE.includes(f.kind) ? (soon.length ? soon : made) : made.length ? made : soon);
-        const freshFor = (f: CustomFix) => (adds.length ? adds : PRE.includes(f.kind) && soon.length ? future : recent);
+        const jointsFor = (f: CustomFix) => (adds.length ? now : isPre(f) ? (soon.length ? soon : made) : made.length ? made : soon);
+        const freshFor = (f: CustomFix) => (adds.length ? adds : isPre(f) && soon.length ? future : recent);
 
-        const pre = fixes.filter((f) => PRE.includes(f.kind));
-        const post = fixes.filter((f) => !PRE.includes(f.kind));
-        const preGroups = pre.flatMap((f) => padded(f, planFits(f, jointsFor(f), freshFor(f), placed, ctx, nodes)));
+        const pre = fixes.filter(isPre);
+        const post = fixes.filter((f) => !isPre(f));
+        const preGroups = pre.flatMap((f) => marked(f, planFits(f, jointsFor(f), freshFor(f), placed, ctx, nodes)));
 
         // a part that receives fittings before it is joined shows up now, so you can see where they go
         const hosts = adds.length ? [] : [...new Set(preGroups.flatMap((g) => g.fits.map((x) => x.host)))].filter((n): n is Node => !!n && !isPlaced(n));
@@ -425,7 +442,7 @@ export function buildCustom(b: PlanBuilder, s: ProductSpec) {
 
         b.stagger(0.05);
         if (preGroups.length) {
-          emit(b, preGroups, used, heads);
+          for (const e of emit(b, preGroups, used, heads)) if (e.press && e.host) pressed.push({ key: e.key, host: e.host });
           b.then(0.15);
         }
 
@@ -438,9 +455,21 @@ export function buildCustom(b: PlanBuilder, s: ProductSpec) {
         }
         if (adds.length) b.then(0.12);
 
+        // then the cams pressed in earlier are turned to lock them
+        if (due.length) {
+          b.stagger(0.06);
+          for (const d of due) {
+            b.lock(d.cam.key, d.open);
+            // the hole its bolt goes in through, in the edge of the cam's board, so the opening is seen facing it
+            const it = b.partItem(d.cam.host.key);
+            if (d.bolt && !it.holes.some((h) => Math.hypot(...sub(h.p, toLocal(d.bolt!.at, it.final.pos, it.final.rot))) < 2)) b.hole(it.key, d.bolt.at, d.bolt.dir, 3);
+          }
+          b.then(0.1);
+        }
+
         b.stagger(0.05);
         for (const f of post) {
-          const groups = f.kind === "cap" && !f.at?.length && !f.to?.length && heads.length ? capFits(f, heads) : padded(f, planFits(f, jointsFor(f), freshFor(f), [...placed, ...inStep], ctx, nodes));
+          const groups = f.kind === "cap" && !f.at?.length && !f.to?.length && heads.length ? capFits(f, heads) : marked(f, planFits(f, jointsFor(f), freshFor(f), [...placed, ...inStep], ctx, nodes));
           emit(b, groups, used, heads);
           b.then(0.1);
         }
@@ -546,11 +575,70 @@ interface Group {
   fits: Fit[];
   exact?: boolean; // placed by hand with `at`: emitted where the recipe says, never nudged
   pad?: boolean; // stick-on glides shown getting their pads first (CustomFix.pad)
+  press?: boolean; // cams pressed in open, turned in a later step (CustomFix.turn false)
 }
 
-/** Marks the groups of a stick-on glide fix whose pads come apart, so the player shows them going on. */
-function padded(f: CustomFix, groups: Group[]): Group[] {
-  return f.pad && f.kind === "glideStrip" ? groups.map((g) => ({ ...g, pad: true })) : groups;
+/** Marks the groups the player shows in their own way: stick-on glides whose pads come apart, cams pressed in open. */
+function marked(f: CustomFix, groups: Group[]): Group[] {
+  if (f.pad && f.kind === "glideStrip") return groups.map((g) => ({ ...g, pad: true }));
+  if (f.turn === false && f.kind === "cam") return groups.map((g) => ({ ...g, press: true }));
+  return groups;
+}
+
+/** A cam pressed in open (CustomFix.turn false), waiting for the step that turns it. */
+interface Pressed {
+  key: string;
+  host: Node;
+}
+
+/** A fitting's point and the way it goes in, in the finished product. */
+function placedHw(b: PlanBuilder, it: HwItem): { at: Vec3; dir: Vec3 } {
+  if (!it.parent) return { at: it.pos, dir: it.dir };
+  const p = b.partItem(it.parent);
+  return { at: add(rotate(it.pos, p.final.rot), p.final.pos), dir: rotate(it.dir, p.final.rot) };
+}
+
+/**
+ * The part a pressed cam locks onto, and the way its opening faces (toward its cam bolt) in the finished product.
+ * Its bolt is the nearest one fitted so far in another part, the two axes within 25 mm as they are drawn (the cam
+ * 12.4 mm deep, the bolt's neck and head 23.1 mm out). With no bolt: the part across the edge of its board nearest
+ * the cam, where a bolt would come in.
+ */
+function camJoint(b: PlanBuilder, c: Pressed, byKey: Map<string, Node>, nodes: Map<string, Node>): { other?: Node; open: Vec3; bolt?: { at: Vec3; dir: Vec3 } } {
+  const cam = placedHw(b, b.map.get(c.key) as HwItem);
+  const line = (at: Vec3, dir: Vec3, from: number, to: number) => Array.from({ length: 13 }, (_, i) => sub(at, mul(dir, from + ((to - from) * i) / 12)));
+  const camPts = line(cam.at, cam.dir, -12.4, 0.4);
+  let best: { host: Node; at: Vec3; dir: Vec3; d: number } | null = null;
+  for (const it of b.items) {
+    if (it.kind !== "hw" || !it.parent || it.parent === c.host.key || b.hw.get(it.ref)?.kind !== "camScrew") continue;
+    const host = byKey.get(it.parent);
+    if (!host) continue;
+    const bolt = placedHw(b, it);
+    const pts = line(bolt.at, bolt.dir, 0, 23.1);
+    const d = Math.min(...camPts.flatMap((p) => pts.map((q) => Math.hypot(...sub(p, q)))));
+    if (d <= 25 && (!best || d < best.d)) best = { host, at: bolt.at, dir: bolt.dir, d };
+  }
+  // the opening faces the way the bolt goes into its own part, across the cam's face
+  const across = (v: Vec3) => {
+    const w = sub(v, mul(cam.dir, v[0] * cam.dir[0] + v[1] * cam.dir[1] + v[2] * cam.dir[2]));
+    const n = Math.hypot(...w);
+    return n > 1e-6 ? mul(w, 1 / n) : null;
+  };
+  const open = best && across(best.dir);
+  if (best && open) return { other: best.host, open, bolt: { at: best.at, dir: best.dir } };
+  const centre = add(cam.at, mul(cam.dir, 6));
+  const box = c.host.box;
+  const k0 = AXES.reduce((a, k) => (Math.abs(cam.dir[k]) > Math.abs(cam.dir[a]) ? k : a), 0);
+  let edge = { k: k0 === 0 ? 1 : 0, s: -1, d: Infinity };
+  for (const k of AXES)
+    for (const s of [-1, 1]) {
+      const d = s < 0 ? centre[k] - box.min[k] : box.max[k] - centre[k];
+      if (k !== k0 && d < edge.d) edge = { k, s, d };
+    }
+  const probe: Vec3 = [...centre];
+  probe[edge.k] = (edge.s < 0 ? box.min[edge.k] : box.max[edge.k]) + edge.s * 3;
+  const other = [...nodes.values()].find((n) => n !== c.host && AXES.every((k) => probe[k] >= n.box.min[k] - 1 && probe[k] <= n.box.max[k] + 1));
+  return { other, open: unit(edge.k, edge.s) };
 }
 interface Ctx {
   center: Vec3;
@@ -752,6 +840,7 @@ function capFits(f: CustomFix, heads: Fit[]): Group[] {
 
 function emit(b: PlanBuilder, groups: Group[], used: Vec3[], heads?: Fit[]) {
   const total = groups.reduce((s, g) => s + g.fits.length, 0);
+  const out: { key: string; host?: Node; press?: boolean }[] = [];
   for (const g of groups) {
     const list: FitOpts[] = g.fits.map((fit) => {
       const { host: _host, slide, ...o } = fit;
@@ -775,11 +864,12 @@ function emit(b: PlanBuilder, groups: Group[], used: Vec3[], heads?: Fit[]) {
         }
       }
       used.push(at);
-      return { ...o, at, sink: through(g.def, fit) || undefined, pad: g.pad };
+      return { ...o, at, sink: through(g.def, fit) || undefined, pad: g.pad, press: g.press };
     });
     if (heads) list.forEach((o, i) => o.sink && heads.push({ ...o, host: g.fits[i].host }));
-    b.fits(g.def, list, Math.min(0.07, 2.4 / Math.max(1, total)));
+    b.fits(g.def, list, Math.min(0.07, 2.4 / Math.max(1, total))).forEach((key, i) => out.push({ key, host: g.fits[i].host, press: g.press }));
   }
+  return out;
 }
 
 /** Every part gets added exactly once, in order, and steps stay short enough to follow. */
