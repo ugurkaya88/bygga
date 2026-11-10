@@ -307,8 +307,14 @@ export function hwDrawable(kind: HwKind, len: number, dia: number) {
     case "cam": {
       // the face stands 0.4 mm proud of the board, so the two never share a plane and flicker
       addSolid(d, "cam:body", cyl(7.4, 12.8, 32), metal, { hull: "cyl", position: [0, -6.0, 0] });
-      addSolid(d, "cam:slot", () => new THREE.BoxGeometry(9, 0.8, 1.6), FACE.hwMetal, { position: [0, 0.8, 0] });
-      addSolid(d, "cam:arrow", () => new THREE.ConeGeometry(1.4, 2.6, 3), FACE.hwMetal, { position: [5.2, 0.8, 0], rotation: [0, 0, -Math.PI / 2], edges: true });
+      // a cross (Phillips) recess in the middle, as the manuals turn it with a cross-tip screwdriver, and the arrow by
+      // the rim that points at the opening
+      inkLoops(d, "cam:cross", () => {
+        const a = 3.2, w = 0.75, y = 0.45;
+        const plus: [number, number][] = [[w, w], [a, w], [a, -w], [w, -w], [w, -a], [-w, -a], [-w, -w], [-a, -w], [-a, w], [-w, w], [-w, a], [w, a]];
+        return [plus.map(([x, z]) => new THREE.Vector3(x, y, z))];
+      });
+      addSolid(d, "cam:arrow", () => new THREE.ConeGeometry(1.3, 2.4, 3), FACE.hwMetal, { position: [5.4, 0.8, 0], rotation: [0, 0, -Math.PI / 2], edges: true });
       break;
     }
     case "screw": {

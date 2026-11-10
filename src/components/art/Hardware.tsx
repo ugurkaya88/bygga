@@ -167,8 +167,9 @@ function draw(kind: HwKind, len: number, dia: number): Drawn {
           <g transform="translate(0 -4)">
             <path d="M0 0 V9.5 A7.5 3.2 0 0 0 15 9.5 V0" fill={METAL} {...stroke} />
             <ellipse cx={7.5} cy={0} rx={7.5} ry={3.2} fill={METAL_TOP} {...stroke} />
-            <path d="M3.4 -1.1 L11.6 1.1" {...stroke} strokeWidth={2.2} />
-            <path d="M10.6 -1.9 L13 -0.6 L11.2 0.6" fill="none" {...stroke} strokeWidth={1.1} />
+            {/* the cross (Phillips) recess in the middle and the arrow by the rim, pointing at the opening */}
+            <path d="M5.3 0 H9.7 M7.5 -1 V1" {...stroke} strokeWidth={1.5} />
+            <path d="M10.9 -1.6 L13.2 -0.4 L11.3 0.8" fill="none" {...stroke} strokeWidth={1.1} />
           </g>
         ),
       };
