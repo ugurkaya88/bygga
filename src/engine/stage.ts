@@ -68,6 +68,12 @@ const PAD = { reach: 0.45, peel: 1.4, peeled: 2.6, off: 2.55, gone: 2.9, flip: 2
 const PEEL_R = 6; // mm, how tight the backing curls where it leaves the pad
 const PAD_HOVER = 55;
 const PAD_REACH = 45;
+/** An earlier part that hides the step's new work from the camera is drawn this see-through while it does. */
+const XRAY = 0.3;
+/** How often (seconds, at most) the view is checked again for parts in the way while it moves. */
+const XRAY_EVERY = 0.12;
+/** The most points of the step's new work a check looks at (each a ray toward the camera). */
+const XRAY_SAMPLES = 40;
 
 interface PNode {
   item: PartItem;
@@ -371,6 +377,14 @@ export class Stage {
   private armSwing = new Map<HNode, { at: THREE.Vector3; axis: THREE.Vector3 }>();
   /** a plain drag (one finger, or the left button) moves the view instead of turning it: the player's hand button */
   private panMode = false;
+  /** Earlier parts in the way of the step's new work, as the view last showed them (Stage.updateXray). */
+  private xrayGoal = new Set<PNode>();
+  /** How solid each earlier part is drawn this frame, gliding toward XRAY or back to 1. */
+  private xray = new Map<PNode, number>();
+  /** the view (camera and framing) and step the last check was made for, and how long ago */
+  private xrayView: number[] = [];
+  private xrayAgo = Infinity;
+  private raycaster = new THREE.Raycaster();
 
   /* ---------------- setup ---------------- */
 
@@ -700,6 +714,8 @@ export class Stage {
     this.lengthBox = { w: 0, h: 0 };
     this.bitBox = false;
     this.adjustBox = false;
+    this.xrayGoal.clear();
+    this.xrayView = [];
     this.stepXf.clear();
     this.armSwing.clear();
     this.shiftFrom.set(0, 0, 0);
@@ -914,6 +930,97 @@ export class Stage {
     this.updateItems();
     if (this.carryT < 1) this.blendCarry();
     this.updateCamera(dt);
+    this.updateXray(dt);
+  }
+
+  /**
+   * Earlier parts that hide the step's new work from the camera are drawn see-through (XRAY) for as long as they do.
+   * Whenever the view or the step changes (at most every XRAY_EVERY seconds), a ray goes from each of a few points of
+   * the new work toward the camera: from where each new fitting's head ends up, just out of its surface, and from the
+   * middle and four corners of each new part where it ends up. An earlier part a ray meets is in the way (for a part,
+   * when it is in the way of most of its points); the part a fitting sits in never is. The parts glide to see-through
+   * and back.
+   */
+  private updateXray(dt: number) {
+    const m = this.mode;
+    const live = m.kind === "step" && !this.opts.offscreen;
+    if (live) {
+      this.xrayAgo += dt;
+      const c = this.camera;
+      const view = [...c.matrixWorld.elements, c.left, c.right, c.top, c.bottom, c.zoom, m.index, ...this.shiftTo.toArray()];
+      const moved = view.length !== this.xrayView.length || view.some((v, i) => Math.abs(v - this.xrayView[i]) > 1e-3);
+      if (moved && this.xrayAgo >= XRAY_EVERY) {
+        this.xrayView = view;
+        this.xrayAgo = 0;
+        this.findXray(m.index);
+      }
+    }
+    const k = 1 - Math.exp(-(dt || 1) * 9);
+    for (const p of this.parts) {
+      const goal = live && this.xrayGoal.has(p) ? XRAY : 1;
+      const v = this.xray.get(p) ?? 1;
+      const next = Math.abs(goal - v) < 0.005 ? goal : v + (goal - v) * k;
+      if (next === 1) this.xray.delete(p);
+      else this.xray.set(p, next);
+    }
+  }
+
+  private findXray(s: number) {
+    this.xrayGoal.clear();
+    const olds: PNode[] = [];
+    const fresh: PNode[] = [];
+    for (const [p, x] of this.stepXf) (x.st.step === s ? fresh : olds).push(p);
+    if (!olds.length) return;
+    this.scene.updateMatrixWorld();
+    // where a part ends up this step, in the world
+    const atEnd = (p: PNode) => {
+      const x = this.stepXf.get(p)!;
+      return this.root.matrixWorld.clone().multiply(new THREE.Matrix4().compose(x.fin.p.clone().add(this.shiftTo), x.fin.q, new THREE.Vector3(1, 1, 1)));
+    };
+    // points of the new work, each with the part it sits in and how many points its part has
+    const pts: { at: THREE.Vector3; skip?: PNode; group: number }[] = [];
+    let group = 0;
+    for (const h of this.hws) {
+      const it = h.item;
+      if ((it.step !== s && it.lock?.step !== s) || it.preset || !h.holder.visible) continue;
+      const mw = h.parent ? atEnd(h.parent) : this.root.matrixWorld.clone();
+      const out = new THREE.Vector3(0, 1, 0).applyQuaternion(h.holder.quaternion).multiplyScalar(2);
+      pts.push({ at: h.holder.position.clone().add(out).applyMatrix4(mw), skip: h.parent, group: group++ });
+    }
+    for (const p of fresh) {
+      const mw = atEnd(p);
+      const g = group++;
+      pts.push({ at: new THREE.Vector3().applyMatrix4(mw), group: g });
+      for (const i of [0, 3, 5, 6]) pts.push({ at: p.corners[i].clone().multiplyScalar(0.6).applyMatrix4(mw), group: g });
+    }
+    if (!pts.length) return;
+    const step = Math.max(1, Math.ceil(pts.length / XRAY_SAMPLES));
+    const toCam = new THREE.Vector3();
+    this.camera.getWorldDirection(toCam).negate();
+    const camAt = new THREE.Vector3().setFromMatrixPosition(this.camera.matrixWorld);
+    const meshes = olds.flatMap((p) => p.d.meshes);
+    const owner = new Map<THREE.Object3D, PNode>();
+    for (const p of olds) for (const mesh of p.d.meshes) owner.set(mesh, p);
+    // per group of points: how many of them each earlier part is in the way of
+    const hits = new Map<number, Map<PNode, number>>();
+    const size = new Map<number, number>();
+    for (let i = 0; i < pts.length; i += step) {
+      const pt = pts[i];
+      size.set(pt.group, (size.get(pt.group) ?? 0) + 1);
+      this.raycaster.set(pt.at, toCam);
+      // only what the camera draws: from the point to the camera's near plane
+      this.raycaster.far = Math.max(0, camAt.clone().sub(pt.at).dot(toCam) - this.camera.near);
+      const seen = new Set<PNode>();
+      for (const hit of this.raycaster.intersectObjects(meshes, false)) {
+        const p = owner.get(hit.object);
+        if (!p || p === pt.skip || hit.distance < 0.5 || seen.has(p) || !p.node.visible) continue;
+        seen.add(p);
+        const g = hits.get(pt.group) ?? new Map<PNode, number>();
+        g.set(p, (g.get(p) ?? 0) + 1);
+        hits.set(pt.group, g);
+      }
+    }
+    for (const [g, by] of hits) for (const [p, n] of by) if (n * 2 > (size.get(g) ?? 1)) this.xrayGoal.add(p);
   }
 
   private targetPoseQ() {
@@ -970,13 +1077,15 @@ export class Stage {
     this.root.updateMatrixWorld(true);
   }
 
-  private styleDrawable(d: Drawable, o: { opacity: number; ink: boolean; tint: number; width: number }) {
+  private styleDrawable(d: Drawable, o: { opacity: number; ink: boolean; tint: number; width: number; through?: boolean }) {
     d.opacity = o.opacity;
     for (const f of d.faces) {
       f.uniforms.uOpacity.value = o.opacity;
       f.uniforms.uTintAmt.value = o.tint;
-      f.depthWrite = o.opacity > 0.05;
+      // a part seen through (Stage.updateXray) leaves the depth to what is behind it, its lines included
+      f.depthWrite = o.opacity > 0.05 && !o.through;
     }
+    for (const m of [...d.lines, ...d.thin, ...d.hulls]) m.depthWrite = !o.through;
     const col = o.ink ? INK : INK_OLD;
     const lw = this.opts.offscreen ? o.width * 1.15 : o.width;
     for (const l of d.lines) {
@@ -1012,6 +1121,7 @@ export class Stage {
       const node = p.node;
       const ref = p.item.ref;
       const hover = this.hovered === ref;
+      node.renderOrder = 0;
       const lit = hl?.has(ref) ?? false;
       if (m.kind === "step") {
         const x = this.stepXf.get(p);
@@ -1056,7 +1166,11 @@ export class Stage {
         } else {
           node.position.copy(fin.p);
           node.quaternion.copy(fin.q);
-          this.styleDrawable(p.d, { opacity: 1, ink: hover || lit, tint: hover || lit ? 0.7 : 0, width: hover || lit ? 1.9 : 1.5 });
+          // in the way of the step's new work: drawn see-through, and last, over what it hides
+          const x = this.xray.get(p) ?? 1;
+          const through = x < 0.995;
+          node.renderOrder = through ? 10 : 0;
+          this.styleDrawable(p.d, { opacity: x, ink: hover || lit, tint: hover || lit ? 0.7 : 0, width: hover || lit ? 1.9 : 1.5, through });
         }
         node.position.add(this.shiftNow);
       } else if (m.kind === "intro") {
@@ -1143,9 +1257,11 @@ export class Stage {
         h.inner.position.set(0, 0, 0);
         h.inner.quaternion.setFromAxisAngle(Y, -((it.spin ?? 0) * Math.PI * 2 + turn));
         if (it.pad) this.padPose(h, PAD.dur);
-        const op = m.kind === "intro" ? clamp01((t - this.stepEnd + 0.7) / 0.5) : 1;
+        // an earlier fitting on a part seen through goes see-through with it
+        const x = m.kind === "step" && !isNew && !locking && h.parent ? (this.xray.get(h.parent) ?? 1) : 1;
+        const op = (m.kind === "intro" ? clamp01((t - this.stepEnd + 0.7) / 0.5) : 1) * x;
         const lit = this.highlight?.has(it.ref) ?? false;
-        this.styleDrawable(h.d, { opacity: op, ink: isNew || locking || lit || m.kind !== "step", tint: lit ? 0.8 : 0, width: lit ? 1.7 : 1.25 });
+        this.styleDrawable(h.d, { opacity: op, ink: isNew || locking || lit || m.kind !== "step", tint: lit ? 0.8 : 0, width: lit ? 1.7 : 1.25, through: x < 0.995 });
       }
     }
 
