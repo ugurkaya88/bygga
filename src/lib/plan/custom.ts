@@ -322,6 +322,23 @@ export function buildCustom(b: PlanBuilder, s: ProductSpec) {
   // cams pressed in open, waiting for the step that turns them
   let pressed: Pressed[] = [];
   const byKey = new Map([...nodes.values()].map((n) => [n.key, n]));
+  // dowels and cam bolts so far: a part they join has to arrive along them, not slide across them
+  const pins: { host: Node; mate: string; dir: Vec3 }[] = [];
+  const keepPins = (groups: Group[]) => {
+    for (const g of groups) if (g.def.kind === "dowel" || g.def.kind === "camScrew") for (const f of g.fits) if (f.mate && f.host) pins.push({ host: f.host, mate: f.mate, dir: f.dir });
+  };
+  const arrive = (n: Node, others: Node[], given?: Vec3) => {
+    const off = given ?? approach(n, others, pose);
+    if (given) return off;
+    const keys = new Set(others.map((o) => o.key));
+    // a dowel in this part sticks out towards its mate, so the part moves against its direction; one in a part already there, the other way
+    const ways = pins.flatMap((p) => (p.host === n && keys.has(p.mate) ? [p.dir] : p.mate === n.key && others.includes(p.host) ? [p.dir.map((v) => -v) as Vec3] : []));
+    const axes = new Set(ways.map(major));
+    if (axes.size !== 1) return off;
+    const k = [...axes][0];
+    if (major(off) === k && Math.sign(off[k]) === Math.sign(ways[0][k])) return off;
+    return unit(k, Math.sign(ways[0][k]) * Math.hypot(...off));
+  };
 
   steps.forEach((st, si) => {
     const adds = (st.add ?? []).map((id) => nodes.get(id)).filter((n): n is Node => !!n && !isPlaced(n));
@@ -413,6 +430,7 @@ export function buildCustom(b: PlanBuilder, s: ProductSpec) {
         const pre = fixes.filter(isPre);
         const post = fixes.filter((f) => !isPre(f));
         const preGroups = pre.flatMap((f) => marked(f, planFits(f, jointsFor(f), freshFor(f), placed, ctx, nodes)));
+        keepPins(preGroups);
 
         // a part that receives fittings before it is joined shows up now, so you can see where they go
         const hosts = adds.length ? [] : [...new Set(preGroups.flatMap((g) => g.fits.map((x) => x.host)))].filter((n): n is Node => !!n && !isPlaced(n));
@@ -432,7 +450,7 @@ export function buildCustom(b: PlanBuilder, s: ProductSpec) {
             waiting.push(n);
           }
           for (const n of fresh) {
-            const off = st.from?.[n.id] ?? approach(n, [...placed, ...inStep], pose);
+            const off = arrive(n, [...placed, ...inStep], st.from?.[n.id]);
             if (toWait.includes(n)) {
               const it = b.partItem(n.key);
               b.stage(n.key, beside(n, off, ctx), it.final.rot, off);
@@ -456,7 +474,7 @@ export function buildCustom(b: PlanBuilder, s: ProductSpec) {
         for (const n of adds) {
           // a part that waited beside the build is lifted over to its way in first, then goes in along it; a door
           // the step hangs comes in open and swings shut
-          b.add(n.key, st.from?.[n.id] ?? approach(n, [...placed, ...inStep], pose), { lift: aside.has(n) || undefined, swing: hungOpen(n, st.swing?.[n.id]) });
+          b.add(n.key, arrive(n, [...placed, ...inStep], st.from?.[n.id]), { lift: aside.has(n) || undefined, swing: hungOpen(n, st.swing?.[n.id]) });
           inStep.push(n);
         }
         if (adds.length) b.then(0.12);
@@ -476,6 +494,7 @@ export function buildCustom(b: PlanBuilder, s: ProductSpec) {
         b.stagger(0.05);
         for (const f of post) {
           const groups = f.kind === "cap" && !f.at?.length && !f.to?.length && heads.length ? capFits(f, heads) : marked(f, planFits(f, jointsFor(f), freshFor(f), [...placed, ...inStep], ctx, nodes));
+          keepPins(groups);
           emit(b, groups, used, heads);
           b.then(0.1);
         }
@@ -528,6 +547,12 @@ function lookahead(steps: CustomStep[], si: number, nodes: Map<string, Node>, pl
     if (next.length) return next;
   }
   return [];
+}
+
+/** The axis a vector mostly points along. */
+function major(v: Vec3): number {
+  const a = v.map(Math.abs);
+  return a[0] >= a[1] && a[0] >= a[2] ? 0 : a[1] >= a[2] ? 1 : 2;
 }
 
 function approach(n: Node, others: Node[], pose: Pose): Vec3 {
@@ -851,9 +876,10 @@ function emit(b: PlanBuilder, groups: Group[], used: Vec3[], heads?: Fit[]) {
   const out: { key: string; host?: Node; press?: boolean }[] = [];
   for (const g of groups) {
     const list: FitOpts[] = g.fits.map((fit) => {
-      const { host: _host, slide, ...o } = fit;
-      void _host;
+      const { host, slide, ...o } = fit;
       const at: Vec3 = [...o.at];
+      // moved along the joint, a fitting has to stay on the part it goes into
+      const onHost = (p: Vec3) => !host || [0, 1, 2].every((k) => o.dir[k] !== 0 || (p[k] >= host.box.min[k] - 1 && p[k] <= host.box.max[k] + 1));
       const free = (p: Vec3) => used.every((u) => Math.hypot(u[0] - p[0], u[1] - p[1], u[2] - p[2]) > 22);
       // washers, nuts and caps go on the bolt already there, so they share its point
       if (!g.exact && !STACKS.includes(g.def.kind) && !free(at)) {
@@ -862,7 +888,7 @@ function emit(b: PlanBuilder, groups: Group[], used: Vec3[], heads?: Fit[]) {
           for (const k of axis) {
             const p: Vec3 = [...at];
             p[k] += step;
-            if (free(p)) {
+            if (free(p) && onHost(p)) {
               at[0] = p[0];
               at[1] = p[1];
               at[2] = p[2];
@@ -871,7 +897,8 @@ function emit(b: PlanBuilder, groups: Group[], used: Vec3[], heads?: Fit[]) {
           }
         }
       }
-      used.push(at);
+      // a washer, nut or cap shares its bolt's point, so it never pushes the bolt listed after it off that point
+      if (!STACKS.includes(g.def.kind)) used.push(at);
       return { ...o, at, sink: through(g.def, fit) || undefined, pad: g.pad, press: g.press };
     });
     if (heads) list.forEach((o, i) => o.sink && heads.push({ ...o, host: g.fits[i].host }));

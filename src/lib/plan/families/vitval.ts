@@ -117,6 +117,10 @@ function recipe(g: Geo) {
 
   // short post at the ladder end of the front panel, carrying the ladder's top
   const stubH = yTopRod + ROD / 2 - yUb;
+  const rod = parts.find((p) => p.id === front.rod)!;
+  const rodX0 = rod.pos[0] - rod.size[0] / 2, rodX1 = xLR + D / 2;
+  rod.size = [rodX1 - rodX0, rod.size[1], rod.size[2]];
+  rod.pos = [(rodX0 + rodX1) / 2, rod.pos[1], rod.pos[2]];
   put("ST", "Short post", [D, stubH, D], [xLR, yUb + stubH / 2, zLad], { shape: "cyl" });
 
   // the frame's own cross rails: the bunk's lower front flat bar and foot bar, the loft's ladder ends and long back rail
@@ -151,7 +155,7 @@ function recipe(g: Geo) {
       ...[0, 1, 2, 3].map((k): PartPiece => ({ shape: "box", size: [LW, 20, 40], pos: [0, -len / 2 + (len * (k + 1)) / 5, 0], material: "metal" })),
     ];
     put("LD", "Ladder", [LW + 30, len, 50], [X - D / 2 - 40 - LW / 2, rise / 2, zLad + 10 + reach / 2], { pieces, rot: [-a, 0, 0] });
-    put("LK", "Ladder bracket", [LW + 60, 60, 10], [X - D / 2 - 40 - LW / 2, rise - 30, zLad + 5]);
+    put("LK", "Ladder bracket", [LW + 60, 60, 10], [X - D / 2 - 40 - LW / 2, rise - 30, Z + RAIL_T / 2 + 5]);
   }
 
   // roll-out slatted bases on the bed rails
@@ -182,7 +186,7 @@ function recipe(g: Geo) {
   const longEnd = (x: -1 | 1, z: -1 | 1, ys: number[], mate: string): CustomFix => fix("bolt", ys.map((y) => [x * (L / 2), y, z * Z] as Vec3), [-x, 0, 0], post(x, z), mate, FRAME_BOLT);
   // and into an end part's end, through the post from the front or back
   const endEnd = (x: -1 | 1, z: -1 | 1, ys: number[], mate: string): CustomFix => fix("bolt", ys.map((y) => [x * X, y, z * (W / 2)] as Vec3), [0, 0, -z], post(x, z), mate, FRAME_BOLT);
-  const railYs = (bi: number) => [g.beds[bi] + 12, g.beds[bi] + RAIL_H - 12];
+  const railYs = (bi: number) => [g.beds[bi] + 8, g.beds[bi] + RAIL_H - 8]; // far enough apart to tell two bolts apart
   const yBar = (p: Panel) => p.yb + BAR_H / 2;
 
   const steps: CustomStep[] = [];
@@ -230,9 +234,9 @@ function recipe(g: Geo) {
         endEnd(-1, -1, [yBar(eUh)], eUh.bar),
         endEnd(-1, -1, [eUh.yr], eUh.rod),
         endEnd(-1, 1, [yBar(eUh)], eUh.bar),
-        endEnd(-1, -1, [crossYs[0] - 10, crossYs[0] + 10], hc[0]),
-        endEnd(-1, 1, [crossYs[0] - 10, crossYs[0] + 10], hc[0]),
-        endEnd(-1, -1, [crossYs[1] - 10, crossYs[1] + 10], hc[1]),
+        endEnd(-1, -1, [crossYs[0] - 12, crossYs[0] + 12], hc[0]),
+        endEnd(-1, 1, [crossYs[0] - 12, crossYs[0] + 12], hc[0]),
+        endEnd(-1, -1, [crossYs[1] - 12, crossYs[1] + 12], hc[1]),
         endEnd(-1, 1, [crossYs[1]], hc[1]),
       ],
       tools: ["allen"],
@@ -262,7 +266,7 @@ function recipe(g: Geo) {
       title: "Bolt the foot end together",
       detail: "Two posts and two end rails, the post with the extra holes at the front. Seven bolts.",
       add: [post(1, -1), post(1, 1), ...fc],
-      fix: [endEnd(1, -1, [crossYs[0] - 10, crossYs[0] + 10], fc[0]), endEnd(1, 1, [crossYs[0] - 10, crossYs[0] + 10], fc[0]), endEnd(1, -1, [crossYs[1]], fc[1]), endEnd(1, 1, [crossYs[1] - 10, crossYs[1] + 10], fc[1])],
+      fix: [endEnd(1, -1, [crossYs[0] - 12, crossYs[0] + 12], fc[0]), endEnd(1, 1, [crossYs[0] - 12, crossYs[0] + 12], fc[0]), endEnd(1, -1, [crossYs[1]], fc[1]), endEnd(1, 1, [crossYs[1] - 12, crossYs[1] + 12], fc[1])],
       tools: ["allen"],
       pose: "-x",
     });
@@ -305,7 +309,7 @@ function recipe(g: Geo) {
     fix: [fix("screw", [[xLR, yUb + 40, zLad - D / 2]], [0, 0, 1], "ST", front.bar, { len: 16, dia: 4 })],
     tools: ["screwdriver"],
   });
-  steps.push({ title: "Bolt it to the top rod", detail: "One long bolt through the short post.", fix: [fix("bolt", [[xLR + D / 2, yTopRod, zLad]], [-1, 0, 0], "ST", front.rod, FRAME_BOLT)], tools: ["allen"] });
+  steps.push({ title: "Bolt it to the top rod", detail: "One long bolt from the front through the short post into the rod behind it.", fix: [fix("bolt", [[xLR, yTopRod, zLad + D / 2]], [0, 0, -1], "ST", front.rod, FRAME_BOLT)], tools: ["allen"] });
   const fr = `R${g.beds.length - 1}f`;
   steps.push({
     title: "Bolt the front bed rail under it",
@@ -371,7 +375,7 @@ function recipe(g: Geo) {
       title: "Stand the ends up and bolt in the long back rail",
       detail: "One of you holds the ends upright. Two bolts at each end.",
       add: ["K"],
-      fix: sx.map((x) => longEnd(x, -1, [crossYs[0] - 70, crossYs[0] - 50], "K")),
+      fix: sx.map((x) => longEnd(x, -1, [crossYs[0] - 72, crossYs[0] - 48], "K")),
       tools: ["allen"],
       pose: "+y",
       people: 2,
@@ -390,7 +394,7 @@ function recipe(g: Geo) {
       title: "Screw the ladder bracket to the front rail",
       detail: "Under the short post, two flat-head bolts.",
       add: ["LK"],
-      fix: [fix("bolt", [-1, 1].map((dx) => [xl + dx * 60, upper + RAIL_H - 30, zLad + 10] as Vec3), [0, 0, -1], "LK", fr, FLAT_BOLT)],
+      fix: [fix("bolt", [-1, 1].map((dx) => [xl + dx * 60, upper + RAIL_H - 25, Z + RAIL_T / 2 + 10] as Vec3), [0, 0, -1], "LK", fr, FLAT_BOLT)],
       tools: ["allen"],
     });
     const rise = upper + RAIL_H;
@@ -415,13 +419,13 @@ function recipe(g: Geo) {
     steps.push({
       title: "Bolt the ladder's top to the front rail",
       detail: "Two flat-head bolts at each ladder rail.",
-      fix: [fix("bolt", sx.flatMap((s) => [-1, 1].map((dy) => [xl + s * (LW / 2), rise - 20 + dy * 10, zLad + 20] as Vec3)), [0, 0, -1], "LD", fr, FLAT_BOLT)],
+      fix: [fix("bolt", sx.flatMap((s) => [-1, 1].map((dy) => [xl + s * (LW / 2), rise - 40 + dy * 12, Z + RAIL_T / 2 + 12] as Vec3)), [0, 0, -1], "LD", "LK", FLAT_BOLT)],
       tools: ["allen"],
     });
     steps.push({
-      title: "Hook the bracket over the ladder",
-      detail: "Push it down over the ladder's top and the short post, then two flat-head bolts on each side.",
-      fix: [fix("bolt", sx.flatMap((s) => [-1, 1].map((dy) => [xl + s * (LW / 2 + 20), rise + dy * 15, zLad + 10] as Vec3)), [0, 0, -1], "LK", "ST", FLAT_BOLT)],
+      title: "Bolt the bracket ends to the front rail",
+      detail: "Its ends reach past the ladder's rails: two flat-head bolts on each side, through the bracket into the front rail.",
+      fix: [fix("bolt", sx.flatMap((s) => [-1, 1].map((dy) => [xl + s * (LW / 2 + 24), rise - 25 + dy * 12, Z + RAIL_T / 2 + 10] as Vec3)), [0, 0, -1], "LK", fr, FLAT_BOLT)],
       tools: ["allen"],
     });
     steps.push({ title: "Stick the grip strips on the ladder steps", detail: "Four strips, one along the top of each step." });
@@ -505,11 +509,132 @@ function recipe(g: Geo) {
   return { parts, steps };
 }
 
+/**
+ * The underbed, from its own manual: a white steel tube frame on castors. The long back rail is bent round at both
+ * ends; the end rails slide into those ends and are clamped with long bolts and nuts, the front rail with its low
+ * guard slides onto their other ends and is bolted from the sides, then 13 slats click in on their holders.
+ * `dz` moves the whole bed forward (the bunk set shows it half pulled out).
+ */
+function underbed(dz: number) {
+  const L = 1970, W = 900, T = 25, TH = 30; // tube 25 wide, 30 tall
+  const X = L / 2 - T / 2, Zr = W / 2 - T / 2;
+  const yR = 65; // rail centre, on 50 mm castors
+  const parts: CustomPart[] = [];
+  const put = (id: string, name: string, size: Vec3, pos: Vec3, o: Partial<CustomPart> = {}) => parts.push({ id, name, size, pos: [pos[0], pos[1], pos[2] + dz], material: "metal", ...o });
+  const sx = [-1, 1] as const;
+  const wheel = (x: number, y: number, z: number): PartPiece => ({ shape: "cyl", size: [50, 20, 50], pos: [x, y, z], rot: [0, 0, Math.PI / 2], material: "metal" });
+  const RET = 200; // the bent ends of the back rail
+  const FRET = 150; // the front rail's ends
+  // back frame: long rail and its two bent ends, castors under the corners
+  put("UBF", "Back frame", [L, 80, RET], [0, 40, -W / 2 + RET / 2], {
+    pieces: [
+      { shape: "box", size: [L - 2 * T, TH, T], pos: [0, yR - 40, -RET / 2 + T / 2] },
+      ...sx.map((x): PartPiece => ({ shape: "box", size: [T, TH, RET], pos: [x * X, yR - 40, 0] })),
+      ...sx.map((x) => wheel(x * (X - 40), -15, -RET / 2 + 60)),
+    ],
+  });
+  // end rails: their back ends sit inside the bent ends, their front ends inside the front rail's ends
+  const z0 = -W / 2 + RET / 2, z1 = W / 2 - FRET / 3;
+  for (const x of sx) put(`UBE${x < 0 ? "l" : "r"}`, "End rail", [20, 20, z1 - z0], [x * X, yR, (z0 + z1) / 2]);
+  // front rail with its guard: a low rail, a tube along the top, posts at the ends and in the middle
+  const yG = 190;
+  put("UBR", "Front rail", [L, 200, FRET], [0, 100, W / 2 - FRET / 2], {
+    // the guard stands just in front of the rail, so it rises in front of the mattress
+    pieces: [
+      { shape: "box", size: [L - 2 * T, TH, T], pos: [0, yR - 100, FRET / 2 - T / 2] },
+      ...sx.map((x): PartPiece => ({ shape: "box", size: [T, TH, FRET], pos: [x * X, yR - 100, 0] })),
+      ...sx.map((x) => wheel(x * (X - 40), -75, FRET / 2 - 60)),
+      { shape: "cyl", size: [20, L - 140, 20], pos: [0, yG - 100, FRET / 2 + 10], rot: [0, 0, Math.PI / 2] },
+      ...[-1, 0, 1].map((k): PartPiece => ({ shape: "cyl", size: [20, yG - yR - TH / 2 + 10, 20], pos: [k * (L / 2 - 70), (yG + yR + TH / 2) / 2 - 100 - 5, FRET / 2 + 10] })),
+    ],
+  });
+  // stop loop behind the back rail, it catches on the bed above so the underbed can't come right out
+  put("UBS", "Stop loop", [260, 80, 12], [0, yR + 25, -W / 2 - 6], {
+    pieces: [
+      { shape: "cyl", size: [12, 260, 12], pos: [0, 34, 0], rot: [0, 0, Math.PI / 2] },
+      ...sx.map((x): PartPiece => ({ shape: "cyl", size: [12, 80, 12], pos: [x * 124, 0, 0] })),
+    ],
+  });
+  // slats across, from the back rail to the front rail
+  const yS = yR + TH / 2 + 5;
+  const slatL = 2 * Zr + 10;
+  const n = 13;
+  const xs = Array.from({ length: n }, (_, i) => -L / 2 + 90 + ((L - 180) * i) / (n - 1));
+  xs.forEach((x, i) => put(`UBL${i}`, "Slat", [60, 10, slatL], [x, yS, 0], { material: "wood" }));
+  put("UBM", "Your mattress", [2000, 120, 900], [0, yS + 5 + 60, 0], { material: "soft", extra: true });
+
+  const P = (x: number, y: number, z: number): Vec3 => [x, y, z + dz];
+  const steps: CustomStep[] = [
+    {
+      title: "Push the two bumpers into the back frame",
+      detail: "Into the holes under the long rail, one either side of the middle. Lay the frame on a rug.",
+      add: ["UBF"],
+      fix: [{ kind: "glide", count: 2, name: "Bumper", len: 20, dia: 20, at: sx.map((x) => P(x * 450, yR - TH / 2, -Zr)), dir: [0, 1, 0], on: "UBF" }],
+      pose: "+y",
+      warnings: ["floor"],
+    },
+    {
+      title: "Bolt the stop loop to the back of the rail",
+      detail: "Its ends sit against the back of the long rail, the loop standing up. Two bolts.",
+      add: ["UBS"],
+      fix: [{ kind: "bolt", count: 2, len: 16, dia: 6, at: sx.map((x) => P(x * 124, yR, -W / 2 - 12)), dir: [0, 0, 1], on: "UBS", mate: "UBF" }],
+      from: { UBS: [0, 0, -300] },
+      tools: ["allen"],
+    },
+    {
+      title: "Slide the end rails into the bent ends",
+      detail: "Push each one in until its holes line up with the holes on top.",
+      add: ["UBEl", "UBEr"],
+      from: { UBEl: [0, 0, 400], UBEr: [0, 0, 400] },
+    },
+    {
+      title: "Clamp each joint with two long bolts",
+      detail: "Down through the holes, a nut underneath. Hold the nut with the spanner and tighten with the Allen key.",
+      fix: [
+        { kind: "bolt", count: 4, len: 60, dia: 6, at: sx.flatMap((x) => [-1, 1].map((k) => P(x * X, yR + TH / 2, z0 + k * 40))), dir: [0, -1, 0], on: "UBF", mate: "UBEl" },
+        { kind: "nut", count: 4, len: 6, dia: 10, at: sx.flatMap((x) => [-1, 1].map((k) => P(x * X, yR - TH / 2, z0 + k * 40))), dir: [0, 1, 0], on: "UBF" },
+      ],
+      tools: ["allen", "wrench"],
+    },
+    {
+      title: "Slide the front rail onto the end rails",
+      detail: "The guard faces up and out. Push it on until it meets the frame.",
+      add: ["UBR"],
+      from: { UBR: [0, 0, 400] },
+    },
+    {
+      title: "Bolt the front rail from the sides",
+      detail: "Two bolts through each end of the front rail into the end rail inside.",
+      fix: sx.map((x): CustomFix => ({ kind: "bolt", count: 2, len: 16, dia: 6, at: [-1, 1].map((k) => P(x * (L / 2), yR, W / 2 - FRET / 2 + k * 30)), dir: [-x, 0, 0], on: "UBR", mate: x < 0 ? "UBEl" : "UBEr" })),
+      tools: ["allen"],
+    },
+    {
+      title: "Click the slats into the rails",
+      detail: "A holder on each end of every slat, curved side up. Press each holder into its hole until it clicks.",
+      add: xs.map((_, i) => `UBL${i}`),
+      fix: [
+        { kind: "clip", count: 2 * n, name: "Slat holder", len: 20, dia: 12, at: xs.flatMap((x) => [-1, 1].map((k) => P(x, yS, k * (slatL / 2 - 15)))), dir: [0, -1, 0], on: "UBL0", mate: "UBF" },
+      ],
+    },
+    { title: "Lay in your mattress", detail: "No thicker than 13 cm, so it still slides under the bed.", add: ["UBM"] },
+  ];
+  return { parts, steps };
+}
+
 const family: Family = {
   names: ["VITVAL"],
   recipe(s) {
+    if (/^underbed/i.test(s.variant) || s.slug === "vitval-underbed-90-x-200") return underbed(0);
     const g = geoOf(s);
-    return g ? recipe(g) : null;
+    if (!g) return null;
+    const r = recipe(g);
+    if (!g.loft && /underbed/i.test(`${s.variant} ${s.slug ?? ""}`)) {
+      // the set: the bunk bed's manual, then the underbed's, shown half pulled out in front
+      const u = underbed(650);
+      u.steps[0] = { ...u.steps[0], title: "Now the underbed: push the two bumpers into its back frame" };
+      return { parts: [...r.parts, ...u.parts], steps: [...r.steps, ...u.steps] };
+    }
+    return r;
   },
 };
 export default family;
