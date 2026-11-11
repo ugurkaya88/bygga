@@ -11,6 +11,8 @@ import { num, t } from "@/lib/i18n";
 import { TwoPeople } from "../art/Figure";
 import { SinkCheck } from "../art/SinkCheck";
 import { ScrewCheck, checkScrews } from "../art/ScrewCheck";
+import { BitCheck, bitSize } from "../art/BitCheck";
+import { ADJUSTS, HingeAdjustArt, adjustBody, adjustLabel } from "../art/HingeAdjust";
 import Thumb from "../Thumb";
 import { getPref, setPref } from "@/lib/store";
 import { BRAND, BRAND_INFO } from "@/lib/brand";
@@ -50,7 +52,7 @@ export default function StepPanel({
   const last = index === plan.steps.length - 1;
   const tip = tipFor(plan, index);
   const big = s.warnings.filter((w) => isSafety(w) && !(w === "wall" && s.warnings.includes("tip")));
-  const small = s.warnings.filter((w) => !isSafety(w) && w !== "sink" && w !== "length");
+  const small = s.warnings.filter((w) => !isSafety(w) && w !== "sink" && w !== "length" && w !== "adjust");
   const screws = s.warnings.includes("length") ? checkScrews(plan, c.hardware.map((h) => h.type)) : [];
   const next = plan.steps[index + 1];
   const twoAhead = s.people === 1 ? plan.steps.slice(index + 1, index + 3).findIndex((x) => x.people === 2) : -1;
@@ -143,6 +145,16 @@ export default function StepPanel({
             </div>
           )}
 
+          {s.bit && (
+            <div className="callout sink bit">
+              <BitCheck bit={s.bit} height={58} className="sink-art" />
+              <div>
+                <b>{t("warn.bitTitle", { size: bitSize(s.bit) })}</b>
+                <span>{t("warn.bitBody")}</span>
+              </div>
+            </div>
+          )}
+
           {hasNeeds && (
             <>
               <h3 className="section-title">{t("step.need")}</h3>
@@ -187,6 +199,26 @@ export default function StepPanel({
                   {WARN_TEXT[w]}
                 </span>
               ))}
+            </div>
+          )}
+
+          {s.warnings.includes("adjust") && (
+            <div className="callout adjust">
+              <div className="adjust-head">
+                <b>{t("warn.adjustTitle")}</b>
+                <span>{t("warn.adjustLead")}</span>
+              </div>
+              <ul className="adjust-list">
+                {ADJUSTS.map((a) => (
+                  <li key={a}>
+                    <HingeAdjustArt which={a} width={76} />
+                    <div>
+                      <b>{adjustLabel(a)}</b>
+                      <span>{adjustBody(a)}</span>
+                    </div>
+                  </li>
+                ))}
+              </ul>
             </div>
           )}
 

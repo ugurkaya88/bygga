@@ -17,6 +17,8 @@ import { LogoMark, Wordmark } from "../Logo";
 import { HwArt } from "../art/Hardware";
 import { SinkCheck } from "../art/SinkCheck";
 import { ScrewCheck, checkScrews } from "../art/ScrewCheck";
+import { BitCheck } from "../art/BitCheck";
+import { HingeAdjust } from "../art/HingeAdjust";
 import { Helper } from "../art/Helper";
 import { ICheck, IClose, IEye, IGrid, IHand, IHelp, IMic, IPause, IPlay, IReplay, IRotate, IScan, ISound, ISoundOff, ISparkle } from "../art/Icons";
 import CoverPanel from "./CoverPanel";
@@ -53,7 +55,7 @@ const BADGE = BRAND === "rehber";
 
 type Via = "catalog" | "ai" | "guess" | "scan";
 /** The cards under the step number over the drawing's top left, each of which can be put away on its own step. */
-type Card = "fittings" | "sink" | "length";
+type Card = "fittings" | "sink" | "length" | "bit" | "adjust";
 
 export default function GuideApp({ slug, query, step, kind }: { slug: string; query?: string; step?: number; kind?: string }) {
   const router = useRouter();
@@ -884,6 +886,8 @@ function Guide({ plan, slug, via, ai, startStep, onOwnSteps }: { plan: Plan; slu
   if (contents && contents.hardware.length > 0) cards.push("fittings");
   if (contents && cur?.warnings.includes("sink")) cards.push("sink");
   if (screws.length > 0) cards.push("length");
+  if (cur?.bit) cards.push("bit");
+  if (phase === "steps" && cur?.warnings.includes("adjust")) cards.push("adjust");
   const hidden = cards.filter((c) => hiddenCards[step]?.includes(c));
   const shown = (c: Card) => cards.includes(c) && !hidden.includes(c);
   const hideCard = (c: Card) => {
@@ -1019,6 +1023,18 @@ function Guide({ plan, slug, via, ai, startStep, onOwnSteps }: { plan: Plan; slu
                 <motion.div key={"length" + step} className="length-box corner-card" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.25, duration: 0.35 }}>
                   <ScrewCheck screws={screws} />
                   <HideCard onHide={() => hideCard("length")} />
+                </motion.div>
+              )}
+              {shown("bit") && cur.bit && (
+                <motion.div key={"bit" + step} className="bit-box corner-card" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.25, duration: 0.35 }}>
+                  <BitCheck bit={cur.bit} />
+                  <HideCard onHide={() => hideCard("bit")} />
+                </motion.div>
+              )}
+              {shown("adjust") && (
+                <motion.div key={"adjust" + step} className="adjust-box corner-card" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.3, duration: 0.35 }}>
+                  <HingeAdjust />
+                  <HideCard onHide={() => hideCard("adjust")} />
                 </motion.div>
               )}
               {hidden.length > 0 && (

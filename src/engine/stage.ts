@@ -277,6 +277,9 @@ export class Stage {
   private sinkBox = false;
   /** the screw length check's card under the fittings box, in px (desktop): 0 when the step has none */
   private lengthBox = { w: 0, h: 0 };
+  /** the drill bit's card and the hinged door's adjusting card under it (GuideApp .bit-box, .adjust-box) */
+  private bitBox = false;
+  private adjustBox = false;
   /**
    * The cards over the drawing's top left as the page measured them (GuideApp .corner under the step number): how
    * far right and down they reach, in px, or 0 by 0 when none are shown. Null (thumbnails, or before the page has
@@ -695,6 +698,8 @@ export class Stage {
     this.cornerItems = 0;
     this.sinkBox = false;
     this.lengthBox = { w: 0, h: 0 };
+    this.bitBox = false;
+    this.adjustBox = false;
     this.stepXf.clear();
     this.armSwing.clear();
     this.shiftFrom.set(0, 0, 0);
@@ -774,6 +779,8 @@ export class Stage {
       this.stepEnd = Math.max(end, 0.6);
       this.cornerItems = Math.min(4, new Set(this.hws.filter((h) => h.item.step === s && !h.item.preset).map((h) => h.item.ref)).size);
       this.sinkBox = step.warnings.includes("sink");
+      this.bitBox = !!step.bit;
+      this.adjustBox = step.warnings.includes("adjust");
       this.lengthBox = { w: 0, h: 0 };
       if (step.warnings.includes("length") && this.plan) {
         // as ScrewCheck draws it: one 48-unit column per screw size, the longest screw 2 units per mm, 27 units
@@ -1394,7 +1401,7 @@ export class Stage {
     if (box) {
       // as the page measured what it shows, with a little air: the cards' x buttons stand 8 px out
       if (box.h > 0) starts.splice(0, 1, [mL, Math.max(mT, box.h + 10)], [Math.max(mL, box.w + 10), mT]);
-    } else if (k === "step" && !this.opts.offscreen && (this.cornerItems || this.sinkBox || this.lengthBox.h)) {
+    } else if (k === "step" && !this.opts.offscreen && (this.cornerItems || this.sinkBox || this.lengthBox.h || this.bitBox || this.adjustBox)) {
       // the step number alone is inside the top margin; the countersunk check sits under the fittings box
       const n = this.cornerItems;
       let boxH = n ? CORNER_H.cards[mob ? 1 : 0] + (mob ? 6 + n * 32 : 10 + n * 42) : CORNER_H.num[mob ? 1 : 0];
@@ -1408,6 +1415,15 @@ export class Stage {
         const k = mob ? 82 / 110 : 1;
         boxH += this.lengthBox.h * k + 8;
         boxW = Math.max(boxW, this.lengthBox.w * k);
+      }
+      // as .bit-box and .adjust-box lay out: 64 px of drawing (46 on a phone), three 64 px drawings and their names
+      if (this.bitBox) {
+        boxH += mob ? 64 : 88;
+        boxW = Math.max(boxW, mob ? 140 : 180);
+      }
+      if (this.adjustBox) {
+        boxH += mob ? 70 : 90;
+        boxW = Math.max(boxW, mob ? 170 : 232);
       }
       boxH += m.t;
       boxW += m.l;

@@ -230,6 +230,13 @@ export function WarnIcon({ id, size = 36 }: { id: WarnId; size?: number }) {
         <path d="M8 10l6 6M14 10l-6 6" strokeWidth={2.4} />
       </g>
     ),
+    adjust: (
+      <g {...s}>
+        <rect x="5" y="6" width="22" height="28" rx="1.5" fill="var(--art-paper, #fff)" />
+        <path d="M27 13h5v4h-5M27 23h5v4h-5" fill="var(--art-metal, #e3e5e7)" />
+        <path d="M11 20h10M14 17l-3 3 3 3M18 17l3 3-3 3" />
+      </g>
+    ),
   };
   return (
     <svg viewBox="0 0 40 40" width={size} height={size} className="line-art" aria-hidden="true">
@@ -249,6 +256,7 @@ export const WARN_TEXT: Record<WarnId, string> = {
   sink: t("warn.sink"),
   length: t("warn.length"),
   tip: t("warn.tip"),
+  adjust: t("warn.adjust"),
 };
 
 export function IGithub({ size = 22, className }: { size?: number; className?: string }) {

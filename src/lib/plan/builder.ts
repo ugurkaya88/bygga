@@ -120,6 +120,7 @@ export interface StepDef {
   shift?: Vec3;
   marks?: Mark[];
   sub?: string[];
+  bit?: number;
   weight?: number;
 }
 
@@ -250,6 +251,7 @@ export class PlanBuilder {
       shift: def.shift,
       marks: def.marks,
       sub: def.sub?.length ? def.sub : undefined,
+      ...(def.bit ? { bit: def.bit } : {}),
       minutes: def.weight ?? 0,
     };
     this.steps.push(s);
@@ -440,8 +442,69 @@ export class PlanBuilder {
       });
 
     const hardware = [...this.hw.values()].sort((a, b) => (a.notIncluded ? 1 : 0) - (b.notIncluded ? 1 : 0));
+    this.markDoorAdjust();
 
     return { spec: this.spec, parts: used, hardware, items: this.items, steps: this.steps, tools };
+  }
+
+  /**
+   * Each step that hangs a door on its cup hinges shows how to line the door up with the hinges' three screws
+   * (WarnId "adjust", outside the steps' cap of three). A door is a part carrying hinges (HwItem kind "hinge" with the
+   * part as its parent). It is hung in the first step, once its hinges are on, that puts it in its place in the build
+   * against more parts already there than parts coming in with it (a frame built the same way and moved in whole
+   * brings its door along, it doesn't hang it), or in the step that fits its hinges if it was in place before. Drop-leaf and gateleg tables hinge their leaves, not
+   * doors. Plans with no hinges are left as they were.
+   */
+  private markDoorAdjust() {
+    if (this.spec.table?.leaves) return;
+    const hinged = new Map<string, number>();
+    for (const it of this.items) if (it.kind === "hw" && it.parent && this.hw.get(it.ref)?.kind === "hinge") hinged.set(it.parent, Math.max(hinged.get(it.parent) ?? -1, it.step));
+    if (!hinged.size) return;
+    const types = new Map(this.parts.map((p) => [p.id, p]));
+    const box = (it: PartItem) => {
+      const size = types.get(it.ref)?.size ?? [0, 0, 0];
+      const lo: Vec3 = [Infinity, Infinity, Infinity], hi: Vec3 = [-Infinity, -Infinity, -Infinity];
+      for (const a of [-1, 1])
+        for (const b of [-1, 1])
+          for (const c of [-1, 1]) {
+            const v = rotate([(a * size[0]) / 2, (b * size[1]) / 2, (c * size[2]) / 2], it.final.rot);
+            for (let i = 0; i < 3; i++) {
+              lo[i] = Math.min(lo[i], it.final.pos[i] + v[i]);
+              hi[i] = Math.max(hi[i], it.final.pos[i] + v[i]);
+            }
+          }
+      return { lo, hi };
+    };
+    // an inset door stands a few mm clear of the sides round it
+    const touch = (a: { lo: Vec3; hi: Vec3 }, b: { lo: Vec3; hi: Vec3 }) => [0, 1, 2].every((i) => a.lo[i] - 6 <= b.hi[i] && b.lo[i] - 6 <= a.hi[i]);
+    const inPlace = (it: PartItem, scene: string) =>
+      it.states.filter((st) => st.scene === scene && st.pos.every((v, i) => Math.abs(v - it.final.pos[i]) < 0.5) && st.rot.every((v, i) => Math.abs(v - it.final.rot[i]) < 1e-3)).map((st) => st.step);
+    const parts = this.items.filter((it): it is PartItem => it.kind === "part");
+    const hung = new Set<number>();
+    for (const [key, fitted] of hinged) {
+      const door = this.map.get(key);
+      if (!door || door.kind !== "part" || !door.states.length) continue;
+      const scene = door.states[door.states.length - 1].scene;
+      const placed = inPlace(door, scene);
+      if (placed.some((n) => n < fitted)) {
+        hung.add(fitted);
+        continue;
+      }
+      // the parts it meets, other doors aside: more of them already there than coming in with it
+      const near = parts.filter((p) => p !== door && !hinged.has(p.key) && touch(box(p), box(door)));
+      const at = placed.find((n) => {
+        if (n < fitted) return false;
+        const there = near.filter((p) => inPlace(p, scene).some((m) => m < n)).length;
+        const coming = near.filter((p) => inPlace(p, scene).includes(n)).length;
+        return there > 0 && there > coming;
+      });
+      if (at !== undefined) hung.add(at);
+    }
+    for (const n of hung) {
+      const s = this.steps[n];
+      // a new array: rows share one step's warnings between their frames
+      if (s && !s.warnings.includes("adjust")) s.warnings = [...s.warnings, "adjust"];
+    }
   }
 }
 

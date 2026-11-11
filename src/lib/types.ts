@@ -226,6 +226,7 @@ export interface CustomStep {
   marks?: Mark[]; // pencil lines and drilled holes on the wall, drawn in this step and kept while the wall shows
   sub?: string[]; // the manual's small numbered pictures within the step (peel the tape, stick it on, press it down), listed in order
   lock?: string[]; // cams pressed in earlier (CustomFix.turn false) in these parts, or with their cam bolts in them, are turned in this step instead of the step that joins them (never before it)
+  bit?: number; // mm: the drill bit the step drills with, shown as the manuals' boxed tip beside it (a drill and "Ø7 mm")
 }
 
 /** A pencil line `len` mm long (along local x, turned by `twist` about `dir`), or a round mark `dot` mm across (a drilled hole), on the surface at `at` that `dir` points into (the wall by default). */
@@ -457,7 +458,8 @@ export type WarnId =
   | "face"
   | "sink"
   | "length" // the manual's screw length check: the box's screws side by side, the ones not to use in this step crossed out
-  | "tip";
+  | "tip"
+  | "adjust"; // how to line up a door on cup hinges with their three screws: set by the plan on each step that hangs one
 
 export type Pose = "+y" | "-y" | "+z" | "-z" | "+x" | "-x";
 
@@ -500,6 +502,7 @@ export interface Step {
   shift?: Vec3; // the whole build stands moved by this much (mm) in this step
   marks?: Mark[];
   sub?: string[]; // numbered actions within the step, in order
+  bit?: number; // mm: the drill bit to drill with
   minutes: number;
 }
 

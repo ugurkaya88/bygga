@@ -254,6 +254,9 @@ const KIND_OF: Partial<Record<HwKind, StepKind>> = {
   cornerFoot: "legs",
 };
 
+/** The warnings drawn as cards beside the step rather than listed: they stay outside the cap of three. */
+const CARDS: WarnId[] = ["sink", "length", "adjust"];
+
 const TOOLS_OF: Partial<Record<HwKind, ToolId>> = {
   camScrew: "screwdriver",
   cam: "screwdriver",
@@ -382,7 +385,8 @@ export function buildCustom(b: PlanBuilder, s: ProductSpec) {
         marks: st.marks,
         sub: st.sub?.filter((x) => typeof x === "string" && x.trim()).slice(0, 8),
         // the manual's check cards are drawings beside the step, outside the cap of three
-        warnings: [...[...warnings].filter((w) => w !== "sink" && w !== "length").slice(0, 3), ...[...warnings].filter((w) => w === "sink" || w === "length")],
+        warnings: [...[...warnings].filter((w) => !CARDS.includes(w)).slice(0, 3), ...[...warnings].filter((w) => CARDS.includes(w))],
+        bit: typeof st.bit === "number" && st.bit > 0 && st.bit <= 40 ? Math.round(st.bit * 10) / 10 : undefined,
       },
       () => {
         const targets = new Set(fixes.flatMap((f) => f.to ?? []));
