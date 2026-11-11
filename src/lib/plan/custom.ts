@@ -331,6 +331,8 @@ export function buildCustom(b: PlanBuilder, s: ProductSpec) {
     const g = groups.get(n.part.id);
     return g && si < g.home ? add(n.part.pos, g.at) : undefined;
   };
+  // where each part laid out (CustomStep.lay) lies now, and in which scene
+  const laidAt = new Map<Node, { scene: string; pos: Vec3; rot: Vec3 }>();
   // parts of a group shown waiting at their place in it: their add does not move them
   const waitingApart = new Set<Node>();
   let pose: Pose = "+y";
@@ -363,13 +365,23 @@ export function buildCustom(b: PlanBuilder, s: ProductSpec) {
     const turned = nextPose !== pose;
     pose = nextPose;
     // cams pressed in earlier that this step turns: the parts they hold are both in place now and no later step names
-    // them in `lock`, or this step names them
+    // them in `lock`, or this step names them. In a step drawn in a scene, two boards laid out in it (CustomStep.lay)
+    // count as in place together when they lie as they sit in the finished product, moved and turned alike.
     const inPlace = (n: Node) => isPlaced(n) || adds.includes(n);
+    const layNow = (n: Node) => {
+      if (isPlaced(n) || adds.includes(n)) return undefined;
+      const l = st.lay?.[n.id];
+      return l ? { scene: st.scene ?? "main", pos: l.pos, rot: l.rot ?? b.partItem(n.key).final.rot } : laidAt.get(n);
+    };
+    const laidTogether = (x: Node, y: Node) => {
+      const lx = layNow(x), ly = layNow(y);
+      return !!st.scene && lx?.scene === st.scene && ly?.scene === st.scene && sameMove(b.partItem(x.key).final, lx, b.partItem(y.key).final, ly);
+    };
     const due: (ReturnType<typeof camJoint> & { cam: Pressed })[] = [];
     for (const c of pressed) {
       const j = camJoint(b, c, byKey, nodes);
       const names = (x: CustomStep) => !!x.lock?.some((id) => id === c.host.id || id === j.other?.id);
-      if (j.other && !(inPlace(c.host) && inPlace(j.other) && where(c.host, si) === where(j.other, si))) continue;
+      if (j.other && !((inPlace(c.host) && inPlace(j.other) && where(c.host, si) === where(j.other, si)) || laidTogether(c.host, j.other))) continue;
       if (names(st) || (j.other && !steps.slice(si + 1).some(names))) due.push({ ...j, cam: c });
     }
     pressed = pressed.filter((c) => !due.some((d) => d.cam === c));
@@ -471,6 +483,7 @@ export function buildCustom(b: PlanBuilder, s: ProductSpec) {
           for (const n of laid) {
             const l = st.lay![n.id];
             b.stage(n.key, l.pos, l.rot ?? b.partItem(n.key).final.rot, st.from?.[n.id]);
+            laidAt.set(n, { scene: st.scene ?? "main", pos: l.pos, rot: l.rot ?? b.partItem(n.key).final.rot });
             aside.add(n);
             waiting.push(n);
           }
@@ -590,6 +603,17 @@ function hungOpen(n: Node, s?: { hinge: string; angle?: number }): PartSwing | u
   at[h.k] = h.end < 0 ? n.box.min[h.k] : n.box.max[h.k];
   const deg = typeof s.angle === "number" && s.angle > 0 ? Math.min(180, s.angle) : 90;
   return { at, axis: [...h.axis], angle: (deg * Math.PI) / 180 };
+}
+
+/**
+ * Two parts moved from their places in the finished product (`fa`, `fb`) to `la` and `lb` by the same move and turn:
+ * they still sit against each other as in the product (a side and the bottom it holds, laid out on the floor together).
+ */
+function sameMove(fa: { pos: Vec3; rot: Vec3 }, la: { pos: Vec3; rot: Vec3 }, fb: { pos: Vec3; rot: Vec3 }, lb: { pos: Vec3; rot: Vec3 }) {
+  const move = (p: Vec3, f: { pos: Vec3; rot: Vec3 }, l: { pos: Vec3; rot: Vec3 }) => add(rotate(unrotate(sub(p, f.pos), f.rot), l.rot), l.pos);
+  const turn = (v: Vec3, f: { rot: Vec3 }, l: { rot: Vec3 }) => rotate(unrotate(v, f.rot), l.rot);
+  const near = (p: Vec3, q: Vec3, tol: number) => Math.hypot(...sub(p, q)) <= tol;
+  return near(move(fb.pos, fa, la), lb.pos, 2) && ([[1, 0, 0], [0, 1, 0], [0, 0, 1]] as Vec3[]).every((v) => near(turn(v, fa, la), turn(v, fb, lb), 0.01));
 }
 
 /** A sub-assembly built apart (CustomStep.apart) and the step that brings it home (CustomStep.home). */
