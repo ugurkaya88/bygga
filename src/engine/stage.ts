@@ -1,5 +1,5 @@
 import * as THREE from "three";
-import type { HwItem, PartItem, PartState, PartSwing, PartType, Plan, Step, Vec3 } from "@/lib/types";
+import type { HwItem, HwKind, PartItem, PartState, PartSwing, PartType, Plan, Step, Vec3 } from "@/lib/types";
 import { POSE_EULER } from "@/lib/plan/math";
 import { Drawable, hwDrawable, markDrawable, partDrawable, wallDrawable } from "./drawable";
 import { INK, INK_OLD } from "./materials";
@@ -270,7 +270,7 @@ export class Stage {
   private stack = new Map<string, Xf>();
   private layout = new Map<string, Xf>();
   /** The close-up: what it looks at, when it comes in, and whether it shows a push in and a turn. */
-  private focus?: { local: THREE.Vector3; dir: THREE.Vector3; size: number; delay: number; turn?: number; spin?: number; still?: boolean; pad?: boolean; lock?: boolean }; // lock: a cam pressed in earlier, only turned now (from delay)
+  private focus?: { local: THREE.Vector3; dir: THREE.Vector3; size: number; delay: number; turn?: number; spin?: number; still?: boolean; pad?: boolean; lock?: boolean; cut?: PNode[] }; // lock: a cam pressed in earlier, only turned now (from delay); cut: parts left out of the circle, in the way of its fitting
   private marks: MNode[] = [];
   /** Where the whole build stands this step, moved from its place: from where the step before left it, to here. */
   private shiftFrom = new THREE.Vector3();
@@ -770,21 +770,32 @@ export class Stage {
         const q = x.fin.q.clone().multiply(h.holder.quaternion).multiply(rest).invert();
         this.armSwing.set(h, { at: x.swing.at.clone().applyMatrix4(m), axis: x.swing.axis.clone().applyQuaternion(q) });
       }
-      let first: HNode | undefined;
-      let firstAt = Infinity;
-      let locks = false;
+      // the fittings the close-up can show, first to go in first
+      const shown: { h: HNode; at: number; locks: boolean }[] = [];
       for (const h of this.hws) {
         const lk = h.item.lock;
         // a cam pressed in earlier and turned now: its turn is this step's work too, and can be the close-up
         if (lk?.step === s) {
           end = Math.max(end, lk.delay + CAM_TURN);
-          if (lk.delay < firstAt) [first, firstAt, locks] = [h, lk.delay, true];
+          shown.push({ h, at: lk.delay, locks: true });
         }
         if (h.item.step !== s) continue;
         const dur = h.item.pad ? PAD.dur : HW_DUR + (h.item.turn && !lk ? CAM_TURN : 0);
         end = Math.max(end, h.item.delay + dur);
-        if (h.item.travel > 0 && h.item.delay < firstAt) [first, firstAt, locks] = [h, h.item.delay, false];
+        if (h.item.travel > 0) shown.push({ h, at: h.item.delay, locks: false });
       }
+      shown.sort((a, b) => a.at - b.at);
+      // only fittings drawn in this step: on a part shown in its scene, or in the scene itself (a cap on a screw head
+      // in a board that another scene shows is not)
+      const drawn = shown.filter((c) => (c.h.parent ? this.stepXf.has(c.h.parent) : c.h.item.scene === step.scene));
+      shown.splice(0, shown.length, ...drawn);
+      // the first one still in sight once the step is done: not buried in a joint (a cam bolt a board then goes onto)
+      // nor behind a board close in front of it. When none is, the first, with the parts in its way left out of the circle.
+      const pick = shown.find((c) => !this.inTheWay(c.h, s, plan).length) ?? shown[0];
+      const cut = pick ? this.inTheWay(pick.h, s, plan) : [];
+      const first = pick?.h;
+      const firstAt = pick?.at ?? Infinity;
+      const locks = !!pick?.locks;
       const newMarks = this.marks.filter((mk) => mk.step === s);
       if (newMarks.length) end = Math.max(end, this.markStart + (newMarks.length - 1) * MARK_GAP + MARK_DUR);
       if (this.shiftTo.lengthSq() + this.shiftFrom.lengthSq() > 1) {
@@ -830,14 +841,13 @@ export class Stage {
           }
         }
         const ht = plan.hardware.find((x) => x.id === first!.item.ref)!;
-        const size =
-          ht.kind === "runner" ? 55 : ht.kind === "hinge" || ht.kind === "hingePlate" ? 55 : ht.kind === "cornerFoot" ? Math.max(55, ht.dia * 0.72) : ht.kind === "bracket" ? 50 : ht.kind === "plate" ? 55 : ht.kind === "knob" || ht.kind === "handle" ? 50 : Math.max(17, Math.min(55, Math.max(ht.len, ht.dia * 2) * 0.72));
+        const size = calloutSize(ht.kind, ht.len, ht.dia);
         // a glide got ready in front of its place: the circle looks halfway out, wide enough for both
         const pad = !!first.item.pad;
         if (pad) loc.addScaledVector(dir, -PAD_HOVER / 2);
         // a cam pressed in open is only pushed in in its own step: its turn shows in its lock step
         const turn = first.item.lock && !locks ? undefined : first.item.turn;
-        this.focus = { local: loc, dir, size: pad ? 62 : reach ? Math.max(size, reach + 12) : size, delay: firstAt, turn, spin: first.item.spin, pad: pad || undefined, lock: locks || undefined };
+        this.focus = { local: loc, dir, size: pad ? 62 : reach ? Math.max(size, reach + 12) : size, delay: firstAt, turn, spin: first.item.spin, pad: pad || undefined, lock: locks || undefined, cut: cut.length ? cut : undefined };
       } else if (newMarks.length && this.callout) {
         // a step that only marks the wall shows its first mark close up, drawn on
         const mk = newMarks[0];
@@ -865,6 +875,53 @@ export class Stage {
       const p = this.parts.find((x) => x.item.ref === m.ref);
       if (p) this.frameLocal = p.corners.map((c) => c.clone());
     }
+  }
+
+  /** A fitting's point and the way it goes in, where its part ends up in step `s` (the scene's frame). */
+  private fittingAt(h: HNode, s: number) {
+    const at = new THREE.Vector3(...h.item.pos);
+    const dir = new THREE.Vector3(...h.item.dir).normalize();
+    if (h.parent) {
+      const { st } = this.stateAt(h.parent, s);
+      if (st) {
+        const q = quatFromEuler(st.rot);
+        at.applyQuaternion(q).add(new THREE.Vector3(...st.pos));
+        dir.applyQuaternion(q);
+      }
+    }
+    return { at, dir };
+  }
+
+  /**
+   * The parts that keep the close-up of fitting `h` from showing it at the end of step `s`: the one its head sits in,
+   * just out of where it goes in (a board pushed onto a cam bolt or dowel), and those across the close-up's line of
+   * sight from there, for as far as the close-up draws (a side panel in front of a drawer's side). None: it is in sight.
+   */
+  private inTheWay(h: HNode, s: number, plan: Plan): PNode[] {
+    const { at, dir } = this.fittingAt(h, s);
+    const head = at.clone().addScaledVector(dir, -2);
+    const others: { p: PNode; inv: THREE.Matrix4; half: THREE.Vector3 }[] = [];
+    for (const [p, x] of this.stepXf) {
+      if (p === h.parent) continue;
+      others.push({ p, inv: new THREE.Matrix4().compose(x.fin.p, x.fin.q, new THREE.Vector3(1, 1, 1)).invert(), half: new THREE.Vector3(...p.type.size).multiplyScalar(0.5) });
+    }
+    const v = new THREE.Vector3();
+    const found = new Set<PNode>();
+    const inside = (pt: THREE.Vector3) => {
+      for (const o of others) if ((v.copy(pt).applyMatrix4(o.inv), Math.abs(v.x) < o.half.x - 0.5 && Math.abs(v.y) < o.half.y - 0.5 && Math.abs(v.z) < o.half.z - 0.5)) found.add(o.p);
+    };
+    inside(head);
+    // the close-up looks along the way it goes in, turned a little toward the main view (renderCallout), and draws what
+    // is within its near distance in front of the point
+    const { az, el } = this.camAngles();
+    const look = new THREE.Vector3(Math.sin(az) * Math.cos(el), Math.sin(el), Math.cos(az) * Math.cos(el)).negate();
+    look.applyQuaternion(this.targetPoseQ().invert());
+    const back = dir.clone().multiplyScalar(0.85).addScaledVector(look, 0.55).normalize().negate();
+    const ht = plan.hardware.find((x) => x.id === h.item.ref);
+    const reach = Math.max(120, (ht ? calloutSize(ht.kind, ht.len, ht.dia) : 55) * 2.2);
+    const pt = new THREE.Vector3();
+    for (let d = 4; d <= reach; d += 4) inside(pt.copy(head).addScaledVector(back, d));
+    return [...found];
   }
 
   private introGap() {
@@ -1905,7 +1962,11 @@ export class Stage {
     const sh = this.shadow.visible;
     this.shadow.visible = false;
     if (this.wall) this.wall.node.visible = this.wall.on > 0.02;
+    // a fitting buried in a joint or behind a board close in front: the circle shows it with those parts cut away
+    const cut = (f.cut ?? []).filter((p) => p.node.visible);
+    for (const p of cut) p.node.visible = false;
     co.renderer.render(this.scene, cam);
+    for (const p of cut) p.node.visible = true;
     this.shadow.visible = sh;
     this.setRes(this.w, this.h);
 
@@ -2112,6 +2173,11 @@ export class Stage {
     this.labelLayer?.remove();
     this.tooltip?.remove();
   }
+}
+
+/** Half the width (mm) the close-up takes in round a fitting of this kind and size. */
+function calloutSize(kind: HwKind, len: number, dia: number) {
+  return kind === "runner" ? 55 : kind === "hinge" || kind === "hingePlate" ? 55 : kind === "cornerFoot" ? Math.max(55, dia * 0.72) : kind === "bracket" ? 50 : kind === "plate" ? 55 : kind === "knob" || kind === "handle" ? 50 : Math.max(17, Math.min(55, Math.max(len, dia * 2) * 0.72));
 }
 
 function disposeDrawable(d: Drawable) {
