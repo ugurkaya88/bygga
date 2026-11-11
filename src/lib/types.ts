@@ -172,10 +172,12 @@ export interface CustomPart {
   name: string;
   size: Vec3; // mm along x (width), y (height), z (depth) as it sits in the finished product
   pos: Vec3; // mm, centre of the part; y up from the floor, x left to right, z back to front
+  // a cylinder runs along the axis of its size that differs from the other two when those two are equal: [dia, length,
+  // dia] stands upright, [dia, dia, thickness] is a disc facing the front, [length, dia, dia] a rod along x
   shape?: "box" | "cyl";
   material?: PartMaterial;
   rot?: Vec3; // radians, when it doesn't sit square (a leaning back, a splayed leg); size is before turning
-  pieces?: PartPiece[]; // drawn as these boxes and cylinders (positions from pos) instead of one box of size
+  pieces?: PartPiece[]; // drawn as these boxes and cylinders (positions from pos) instead of one box of size; an unturned cyl takes its axis from its size as the part does, and a halfcyl [dia, dia / 2, thickness] stands facing the front, its flat edge down
   extra?: boolean; // not in the box (a mattress, the wall)
 }
 

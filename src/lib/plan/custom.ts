@@ -1,4 +1,4 @@
-import type { CustomFix, CustomPart, CustomStep, HwItem, HwKind, PartMaterial, PartSwing, Pose, ProductSpec, StepKind, ToolId, Vec3, WarnId } from "../types";
+import type { CustomFix, CustomPart, CustomStep, HwItem, HwKind, PartMaterial, PartPiece, PartSwing, Pose, ProductSpec, StepKind, ToolId, Vec3, WarnId } from "../types";
 import { t } from "../i18n";
 import { HW, PlanBuilder, type FitOpts, type HwDef } from "./builder";
 import { POSE_EULER, add, mul, rotate, sub, toLocal, unrotate } from "./math";
@@ -295,13 +295,15 @@ export function buildCustom(b: PlanBuilder, s: ProductSpec) {
     let ref = types.get(tk);
     const turned = !!p.rot?.some((r) => r);
     const rod = horizontalRod && !turned && !p.pieces;
+    // any other cylinder whose size says it runs along x or z (a round mirror facing the front) is turned that way too
+    const axis = p.shape === "cyl" && !rod && !turned && !p.pieces ? cylAxis(p.size) : 1;
     if (!ref) {
-      const size: Vec3 = p.shape === "cyl" && rod ? [Math.min(p.size[1], p.size[2], p.size[0]), Math.max(p.size[0], p.size[2]), Math.min(p.size[1], p.size[2], p.size[0])] : [p.size[0], p.size[1], p.size[2]];
+      const size: Vec3 = p.shape === "cyl" && rod ? [Math.min(p.size[1], p.size[2], p.size[0]), Math.max(p.size[0], p.size[2]), Math.min(p.size[1], p.size[2], p.size[0])] : axis !== 1 ? upright(p.size, axis) : [p.size[0], p.size[1], p.size[2]];
       ref = b.part(p.name, size, { shape: p.shape ?? "box", material, label: labelsOk ? p.label : undefined, extra: p.extra });
-      if (p.pieces?.length) b.parts[b.parts.length - 1].pieces = p.pieces;
+      if (p.pieces?.length) b.parts[b.parts.length - 1].pieces = p.pieces.map(turnPiece);
       types.set(tk, ref);
     }
-    const rot: Vec3 = turned ? p.rot! : rod ? (p.size[0] >= p.size[2] ? [0, 0, Math.PI / 2] : [Math.PI / 2, 0, 0]) : [0, 0, 0];
+    const rot: Vec3 = turned ? p.rot! : rod ? (p.size[0] >= p.size[2] ? [0, 0, Math.PI / 2] : [Math.PI / 2, 0, 0]) : axis !== 1 ? AXIS_TURN[axis] : [0, 0, 0];
     const key = b.place(ref, p.pos, rot);
     nodes.set(p.id, { id: p.id, part: p, key, box: boxOf(p) });
   }
@@ -509,6 +511,39 @@ export function buildCustom(b: PlanBuilder, s: ProductSpec) {
     if (adds.length || stepHosts.length) lastAdded = [...stepHosts, ...adds];
     stepHosts = [];
   });
+}
+
+/**
+ * The axis a cylinder runs along, read from its size: the one that stands apart when the other two are equal (its
+ * diameter twice). [dia, dia, thickness] is a disc facing the front, [length, dia, dia] a rod along x. Any other size
+ * keeps the drawn axis, y ([dia, length, dia], or a size that does not say).
+ */
+function cylAxis(s: Vec3): 0 | 1 | 2 {
+  const same = (a: number, b: number) => Math.abs(a - b) <= Math.max(1, 0.02 * Math.max(a, b));
+  const apart = (a: number, b: number) => Math.abs(a - b) > 0.15 * Math.max(a, b);
+  if (same(s[0], s[1]) && apart(s[2], s[0])) return 2;
+  if (same(s[1], s[2]) && apart(s[0], s[1])) return 0;
+  return 1;
+}
+
+/** A cylinder drawn along y, [dia, length, dia], turned by AXIS_TURN to run along `axis` with the extents of `s`. */
+const upright = (s: Vec3, axis: 0 | 2): Vec3 => (axis === 2 ? [s[0], s[2], s[0]] : [s[1], s[0], s[1]]);
+const AXIS_TURN: Record<0 | 2, Vec3> = { 0: [0, 0, Math.PI / 2], 2: [Math.PI / 2, 0, 0] };
+
+/**
+ * A recipe's piece as the player draws it. An unturned cylinder runs along the axis its size gives (cylAxis); an
+ * unturned half disc sized [dia, dia / 2, thickness] stands facing the front, its flat edge down, instead of lying
+ * flat ([dia, thickness, dia / 2]). Every other piece is drawn as given.
+ */
+function turnPiece(q: PartPiece): PartPiece {
+  if (q.rot?.some((r) => r)) return q;
+  if (q.shape === "cyl") {
+    const axis = cylAxis(q.size);
+    return axis === 1 ? q : { ...q, size: upright(q.size, axis), rot: AXIS_TURN[axis] };
+  }
+  const [x, y, z] = q.size;
+  if (q.shape === "halfcyl" && z < y && Math.abs(y - x / 2) <= Math.max(1, 0.04 * x)) return { ...q, size: [x, z, x / 2], rot: [-Math.PI / 2, 0, 0] };
+  return q;
 }
 
 /** For each side a door can be hinged on: which end (`end`) of the door along which axis (`k`) that edge is at, and the axis of the turn that brings the free edge toward the front (+z). */
