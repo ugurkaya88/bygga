@@ -754,6 +754,18 @@ export class Stage {
         this.frameLocal.push(...this.corners(p, st.pos, st.rot));
         if (open) this.frameLocal.push(...p.corners.map((c) => c.clone().applyQuaternion(open.q).add(open.p)));
         if (st.step === s) end = Math.max(end, st.delay + PART_DUR + (st.spin ? 0.4 : 0) + (st.lift ? LIFT : 0) + (swing ? SWING_HOLD + SWING_DUR : 0));
+        // a sub-assembly built apart, brought home now: the view takes in where it comes from as well
+        if (st.step === s && prev?.group && prev.scene === st.scene) this.frameLocal.push(...this.corners(p, prev.pos, prev.rot));
+      }
+      // a step whose work is all on one sub-assembly built apart (PartState.group) frames that group alone
+      const apart = this.workApart(s);
+      if (apart) {
+        this.frameLocal = [];
+        for (const [p, x] of this.stepXf) {
+          if (x.st.group !== apart) continue;
+          this.frameLocal.push(...this.corners(p, x.st.pos, x.st.rot));
+          if (x.open) this.frameLocal.push(...p.corners.map((c) => c.clone().applyQuaternion(x.open!.q).add(x.open!.p)));
+        }
       }
       // a door hung open: its hinge line in each of its cup hinges' own frame, where their arms turn back as it swings
       const one = new THREE.Vector3(1, 1, 1);
@@ -922,6 +934,20 @@ export class Stage {
     const pt = new THREE.Vector3();
     for (let d = 4; d <= reach; d += 4) inside(pt.copy(head).addScaledVector(back, d));
     return [...found];
+  }
+
+  /**
+   * The sub-assembly built apart that all of step `s`'s work is on (the parts it adds or moves and the parts its fittings
+   * go on or its cams turn in, each standing in that group), or none.
+   */
+  private workApart(s: number): string | undefined {
+    const groups = new Set<string | undefined>();
+    for (const x of this.stepXf.values()) if (x.st.step === s) groups.add(x.st.group);
+    for (const h of this.hws) {
+      if (h.item.step !== s && h.item.lock?.step !== s) continue;
+      groups.add(h.parent ? this.stepXf.get(h.parent)?.st.group : undefined);
+    }
+    return groups.size === 1 ? [...groups][0] : undefined;
   }
 
   private introGap() {

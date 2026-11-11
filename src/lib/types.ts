@@ -229,6 +229,12 @@ export interface CustomStep {
   sub?: string[]; // the manual's small numbered pictures within the step (peel the tape, stick it on, press it down), listed in order
   lock?: string[]; // cams pressed in earlier (CustomFix.turn false) in these parts, or with their cam bolts in them, are turned in this step instead of the step that joins them (never before it)
   bit?: number; // mm: the drill bit the step drills with, shown as the manuals' boxed tip beside it (a drill and "Ø7 mm")
+  // a sub-assembly built apart (a drawer put together on the floor): the parts this step adds or shows waiting join
+  // `group`, which stands moved by `at` (mm) from its place in the finished product until the step that brings it home
+  apart?: { group: string; at?: Vec3 };
+  // that step: the whole group moves in at once, over to `from` (mm) off its place and in along it (a drawer pushed
+  // in on its runners); the fittings on its parts ride along
+  home?: { group: string; from?: Vec3 };
 }
 
 /** A pencil line `len` mm long (along local x, turned by `twist` about `dir`), or a round mark `dot` mm across (a drilled hole), on the surface at `at` that `dir` points into (the wall by default). */
@@ -396,6 +402,7 @@ export interface PartState {
   from?: Vec3; // approach offset in scene frame
   spin?: number; // revolutions about local Y while approaching
   lift?: boolean; // moves from where it waited to `from` off its place first, then in along it (a top lifted over and lowered on)
+  group?: string; // stands apart with the sub-assembly of this name (CustomStep.apart), built off its place
   swing?: PartSwing; // a door hung on its hinges: it arrives open, turned about the hinge line, then swings shut into pos/rot
   delay: number;
 }

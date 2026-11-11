@@ -320,6 +320,19 @@ export function buildCustom(b: PlanBuilder, s: ProductSpec) {
   // a part a step asks to wait (it takes its fittings now, a later step joins it) stands beside the build, then moves in
   const addedAfter = (n: Node, si: number) => steps.slice(si + 1).some((x) => x.add?.includes(n.id));
   const aside = new Set<Node>();
+  const groups = subAssemblies(steps, nodes, ctx);
+  // the sub-assembly a part stands apart in at step si ("" once it is home, or for a part in none): parts join, touch
+  // and arrive only along parts that stand where they do
+  const where = (n: Node, si: number) => {
+    const g = groups.get(n.part.id);
+    return g && si < g.home ? g.name : "";
+  };
+  const placeOf = (n: Node, si: number): Vec3 | undefined => {
+    const g = groups.get(n.part.id);
+    return g && si < g.home ? add(n.part.pos, g.at) : undefined;
+  };
+  // parts of a group shown waiting at their place in it: their add does not move them
+  const waitingApart = new Set<Node>();
   let pose: Pose = "+y";
   // cams pressed in open, waiting for the step that turns them
   let pressed: Pressed[] = [];
@@ -329,7 +342,8 @@ export function buildCustom(b: PlanBuilder, s: ProductSpec) {
   const keepPins = (groups: Group[]) => {
     for (const g of groups) if (g.def.kind === "dowel" || g.def.kind === "camScrew") for (const f of g.fits) if (f.mate && f.host) pins.push({ host: f.host, mate: f.mate, dir: f.dir });
   };
-  const arrive = (n: Node, others: Node[], given?: Vec3) => {
+  const arrive = (n: Node, all: Node[], si: number, given?: Vec3) => {
+    const others = all.filter((o) => where(o, si) === where(n, si));
     const off = given ?? approach(n, others, pose);
     if (given) return off;
     const keys = new Set(others.map((o) => o.key));
@@ -355,7 +369,7 @@ export function buildCustom(b: PlanBuilder, s: ProductSpec) {
     for (const c of pressed) {
       const j = camJoint(b, c, byKey, nodes);
       const names = (x: CustomStep) => !!x.lock?.some((id) => id === c.host.id || id === j.other?.id);
-      if (j.other && !(inPlace(c.host) && inPlace(j.other))) continue;
+      if (j.other && !(inPlace(c.host) && inPlace(j.other) && where(c.host, si) === where(j.other, si))) continue;
       if (names(st) || (j.other && !steps.slice(si + 1).some(names))) due.push({ ...j, cam: c });
     }
     pressed = pressed.filter((c) => !due.some((d) => d.cam === c));
@@ -414,7 +428,7 @@ export function buildCustom(b: PlanBuilder, s: ProductSpec) {
           const out: Contact[] = [];
           for (let i = 0; i < pool.length; i++)
             for (let j = 0; j < i; j++) {
-              if (!keep(pool[i], pool[j])) continue;
+              if (!keep(pool[i], pool[j]) || where(pool[i], si) !== where(pool[j], si)) continue;
               const ct = contactOf(pool[i], pool[j]);
               if (ct) out.push(ct);
             }
@@ -437,13 +451,22 @@ export function buildCustom(b: PlanBuilder, s: ProductSpec) {
         // a part that receives fittings before it is joined shows up now, so you can see where they go
         const hosts = adds.length ? [] : [...new Set(preGroups.flatMap((g) => g.fits.map((x) => x.host)))].filter((n): n is Node => !!n && !isPlaced(n));
         const arriving = [...hosts, ...adds];
+        // a sub-assembly built apart comes home first, all its parts at once, over to its way in and in along it
+        for (const g of new Set(groups.values())) {
+          if (g.home !== si) continue;
+          const back = placed.filter((n) => groups.get(n.part.id) === g);
+          if (!back.length) continue;
+          b.stagger(0);
+          for (const n of back) b.add(n.key, g.from, { lift: true });
+          b.then(0.15);
+        }
         b.stagger(arriving.length > 3 ? 0.18 : 0.26);
         const inStep: Node[] = [];
         const waiting: Node[] = [];
-        const toWait = (st.wait ?? []).map((id) => nodes.get(id)).filter((n): n is Node => !!n && !isPlaced(n) && !aside.has(n) && !adds.includes(n) && addedAfter(n, si));
+        const toWait = (st.wait ?? []).map((id) => nodes.get(id)).filter((n): n is Node => !!n && !isPlaced(n) && !aside.has(n) && !waitingApart.has(n) && !adds.includes(n) && addedAfter(n, si));
         // parts the recipe lays out itself (flat on the floor, side by side) wait there until a later step adds them
         const laid = Object.keys(st.lay ?? {}).map((id) => nodes.get(id)).filter((n): n is Node => !!n && !isPlaced(n) && !adds.includes(n));
-        const fresh = [...new Set([...hosts, ...toWait])].filter((n) => !aside.has(n) && !laid.includes(n));
+        const fresh = [...new Set([...hosts, ...toWait])].filter((n) => !aside.has(n) && !waitingApart.has(n) && !laid.includes(n));
         if (laid.length || fresh.length) {
           for (const n of laid) {
             const l = st.lay![n.id];
@@ -452,14 +475,16 @@ export function buildCustom(b: PlanBuilder, s: ProductSpec) {
             waiting.push(n);
           }
           for (const n of fresh) {
-            const off = arrive(n, [...placed, ...inStep], st.from?.[n.id]);
+            const off = arrive(n, [...placed, ...inStep], si, st.from?.[n.id]);
+            const at = placeOf(n, si);
             if (toWait.includes(n)) {
               const it = b.partItem(n.key);
-              b.stage(n.key, beside(n, off, ctx), it.final.rot, off);
-              aside.add(n);
+              // a part of a sub-assembly built apart waits at its place in it
+              b.stage(n.key, at ?? beside(n, off, ctx), it.final.rot, off, at && where(n, si));
+              (at ? waitingApart : aside).add(n);
               waiting.push(n);
             } else {
-              b.add(n.key, off);
+              b.add(n.key, off, { at, group: at && where(n, si) });
               inStep.push(n);
             }
           }
@@ -475,8 +500,11 @@ export function buildCustom(b: PlanBuilder, s: ProductSpec) {
         b.stagger(adds.length > 3 ? 0.18 : 0.26);
         for (const n of adds) {
           // a part that waited beside the build is lifted over to its way in first, then goes in along it; a door
-          // the step hangs comes in open and swings shut
-          b.add(n.key, arrive(n, [...placed, ...inStep], st.from?.[n.id]), { lift: aside.has(n) || undefined, swing: hungOpen(n, st.swing?.[n.id]) });
+          // the step hangs comes in open and swings shut. One that waited at its place in a sub-assembly stays there.
+          const at = placeOf(n, si);
+          const swing = hungOpen(n, st.swing?.[n.id]);
+          if (swing && at) swing.at = add(swing.at, sub(at, n.part.pos));
+          b.add(n.key, waitingApart.has(n) ? undefined : arrive(n, [...placed, ...inStep], si, st.from?.[n.id]), { lift: aside.has(n) || undefined, swing, at, group: at && where(n, si) });
           inStep.push(n);
         }
         if (adds.length) b.then(0.12);
@@ -562,6 +590,54 @@ function hungOpen(n: Node, s?: { hinge: string; angle?: number }): PartSwing | u
   at[h.k] = h.end < 0 ? n.box.min[h.k] : n.box.max[h.k];
   const deg = typeof s.angle === "number" && s.angle > 0 ? Math.min(180, s.angle) : 90;
   return { at, axis: [...h.axis], angle: (deg * Math.PI) / 180 };
+}
+
+/** A sub-assembly built apart (CustomStep.apart) and the step that brings it home (CustomStep.home). */
+interface SubAssembly {
+  name: string;
+  at: Vec3; // where it stands, moved from its place in the finished product (mm)
+  home: number; // the step that brings it home
+  from?: Vec3; // the way it comes in, off its place
+}
+
+/**
+ * The sub-assemblies of a recipe, by the ids of their parts: a part joins the group of the first step with `apart`
+ * that adds it or shows it waiting. A group is built where `at` puts it; left out, on the floor in front of the build,
+ * 150 mm clear of its front. It comes home in the first later step whose `home` names it, from `from` off its place;
+ * left out, from straight in front, clear of the build's front by 60 mm. A group no later step brings home is built in
+ * place.
+ */
+function subAssemblies(steps: CustomStep[], nodes: Map<string, Node>, ctx: Ctx) {
+  const members = new Map<string, Node[]>();
+  const given = new Map<string, Vec3 | undefined>();
+  const first = new Map<string, number>();
+  const taken = new Set<string>();
+  const isVec = (v: unknown): v is Vec3 => Array.isArray(v) && v.length === 3 && v.every((x) => typeof x === "number" && Number.isFinite(x));
+  steps.forEach((st, si) => {
+    const name = st.apart?.group;
+    if (typeof name !== "string" || !name) return;
+    if (!first.has(name)) {
+      first.set(name, si);
+      given.set(name, isVec(st.apart!.at) ? st.apart!.at : undefined);
+    }
+    for (const id of [...(st.add ?? []), ...(st.wait ?? [])]) {
+      const n = nodes.get(id);
+      if (!n || taken.has(id)) continue;
+      taken.add(id);
+      members.set(name, [...(members.get(name) ?? []), n]);
+    }
+  });
+  const out = new Map<string, SubAssembly>();
+  for (const [name, parts] of members) {
+    const home = steps.findIndex((st, si) => si > first.get(name)! && st.home?.group === name);
+    if (home < 0) continue;
+    const lo: Vec3 = [0, 1, 2].map((k) => Math.min(...parts.map((n) => n.box.min[k]))) as Vec3;
+    const at = given.get(name) ?? [0, -lo[1], Math.round(ctx.hi[2] + 150 - lo[2])];
+    const from = steps[home].home!.from;
+    const g: SubAssembly = { name, at, home, from: isVec(from) ? from : [0, 0, Math.round(ctx.hi[2] + 60 - lo[2])] };
+    for (const n of parts) out.set(n.part.id, g);
+  }
+  return out;
 }
 
 /** Where a part waits before it is joined: off to the side of the build, at the height it will end up at. */

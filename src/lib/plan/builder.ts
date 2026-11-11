@@ -291,11 +291,14 @@ export class PlanBuilder {
     return d;
   }
 
-  /** Part reaches its assembled position in this step (a door with `swing` reaches it hung open, then swings shut). */
-  add(key: string, from?: Vec3, o: { spin?: number; lift?: boolean; swing?: PartSwing } = {}) {
+  /**
+   * Part reaches its assembled position in this step (a door with `swing` reaches it hung open, then swings shut). A
+   * part of a sub-assembly built apart (`group`) reaches its place in that group instead, at `at`.
+   */
+  add(key: string, from?: Vec3, o: { spin?: number; lift?: boolean; swing?: PartSwing; at?: Vec3; group?: string } = {}) {
     const it = this.partItem(key);
     const s = this.step_;
-    it.states.push({ step: s.n, scene: s.scene, pos: it.final.pos, rot: it.final.rot, from, spin: o.spin, lift: o.lift, swing: o.swing, delay: this.slot(DUR.part + (o.spin ? 0.4 : 0) + (o.lift ? DUR.lift : 0) + (o.swing ? DUR.swing : 0)) });
+    it.states.push({ step: s.n, scene: s.scene, pos: o.at ?? it.final.pos, rot: it.final.rot, from, spin: o.spin, lift: o.lift, swing: o.swing, group: o.group, delay: this.slot(DUR.part + (o.spin ? 0.4 : 0) + (o.lift ? DUR.lift : 0) + (o.swing ? DUR.swing : 0)) });
   }
 
   /** Where a fitting going in at `at` along `dir` meets a part: its hole is there, not where the fitting starts. */
@@ -314,10 +317,10 @@ export class PlanBuilder {
   }
 
   /** Part is shown somewhere else (laid flat, upside down...) from this step until it is added. */
-  stage(key: string, pos: Vec3, rot: Vec3, from?: Vec3) {
+  stage(key: string, pos: Vec3, rot: Vec3, from?: Vec3, group?: string) {
     const it = this.partItem(key);
     const s = this.step_;
-    it.states.push({ step: s.n, scene: s.scene, pos, rot, from, delay: this.slot(DUR.part) });
+    it.states.push({ step: s.n, scene: s.scene, pos, rot, from, group, delay: this.slot(DUR.part) });
   }
 
   fit(def: HwDef, o: FitOpts) {
