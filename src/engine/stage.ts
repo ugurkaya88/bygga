@@ -439,7 +439,7 @@ export class Stage {
       if (it.kind !== "part") continue;
       const type = types.get(it.ref);
       if (!type) continue;
-      const d = partDrawable(type, it.holes);
+      const d = partDrawable(type, it.holes, { keepOff: plan.spec.archetype === "custom" });
       const node = new THREE.Group();
       node.add(d.root);
       node.userData.key = it.key;

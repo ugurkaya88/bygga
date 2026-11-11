@@ -94,7 +94,11 @@ const MAT_COLOR: Record<string, THREE.Color> = {
   glass: FACE.glass,
 };
 
-export function partDrawable(p: PartType, holes: Hole[]) {
+/**
+ * `keepOff`: draw holes recorded off the part too. A recipe (a custom guide) records each hole where its fitting
+ * starts on purpose, on whatever the fitting goes through first (a corner foot, a bracket, a washer), so those stay.
+ */
+export function partDrawable(p: PartType, holes: Hole[], o: { keepOff?: boolean } = {}) {
   const d = new Drawable();
   const [sx, sy, sz] = p.size;
   const color = MAT_COLOR[p.material] ?? FACE.board;
@@ -119,7 +123,7 @@ export function partDrawable(p: PartType, holes: Hole[]) {
   }
   // a hole is drawn only where it sits on the part: one recorded off it would float in the air
   const near = (h: Hole) => h.p.every((v, i) => Math.abs(v) <= p.size[i] / 2 + 3);
-  holes = holes.filter(near);
+  if (!o.keepOff) holes = holes.filter(near);
   if (holes.length) {
     const pts: number[] = [];
     const seg = 14;
