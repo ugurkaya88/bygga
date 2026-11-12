@@ -201,6 +201,8 @@ export class Stage {
   leader?: SVGPathElement;
   leaderDot?: SVGCircleElement;
   arrows: SVGPathElement[] = [];
+  /** the turning arrows round the cams a step turns (Stage.camTurn), in the main view */
+  camRings: SVGPathElement[] = [];
   labels = new Map<string, HTMLDivElement>();
   squareEls: SVGElement[] = [];
   dimsEl?: SVGGElement;
@@ -541,6 +543,8 @@ export class Stage {
     this.labels.clear();
     this.arrows.forEach((a) => a.remove());
     this.arrows = [];
+    this.camRings.forEach((a) => a.remove());
+    this.camRings = [];
     if (this.wall) {
       this.wall.node.removeFromParent();
       disposeDrawable(this.wall.d);
@@ -908,6 +912,21 @@ export class Stage {
       const p = this.parts.find((x) => x.item.ref === m.ref);
       if (p) this.frameLocal = p.corners.map((c) => c.clone());
     }
+  }
+
+  /**
+   * How far along cam `h` is in being turned in step `s` at time `t` (k, 0 to 1), how strongly its turning arrow shows
+   * in the main view (ring) and how lit it is (glow): pressed and turned in the step, or pressed earlier and turned now.
+   */
+  private camTurn(h: HNode, s: number, t: number) {
+    const it = h.item, lk = it.lock;
+    const start = lk ? (lk.step === s ? lk.delay : undefined) : it.step === s && it.turn ? it.delay + HW_DUR : undefined;
+    if (h.kind !== "cam" || start === undefined) return { k: 0, ring: 0, glow: 0 };
+    const u = (t - start) / CAM_TURN;
+    const ring = u < -0.5 ? 0 : u < 0 ? (u + 0.5) * 2 : u < 1.8 ? 1 : clamp01(1 - (u - 1.8) * 2);
+    // lit while it turns, easing off after
+    const glow = u < -0.2 ? 0 : u < 0 ? (u + 0.2) * 5 : u < 1 ? 1 : clamp01(1 - (u - 1) * 1.5);
+    return { k: clamp01(u), ring, glow };
   }
 
   /**
@@ -1425,7 +1444,7 @@ export class Stage {
         // the holder's -Y points into the material, so turning clockwise as seen from outside is a negative angle about Y
         h.inner.quaternion.setFromAxisAngle(Y, -ang);
         const op = clamp01((t - it.delay) / 0.15) * fadeOut;
-        this.styleDrawable(h.d, { opacity: op, ink: true, tint: 0, width: 1.6 });
+        this.styleDrawable(h.d, { opacity: op, ink: true, tint: CAM_GLOW * this.camTurn(h, sIdx, t).glow, width: 1.6 });
       } else {
         h.inner.position.set(0, 0, 0);
         h.inner.quaternion.setFromAxisAngle(Y, -((it.spin ?? 0) * Math.PI * 2 + turn));
@@ -1434,7 +1453,8 @@ export class Stage {
         const x = m.kind === "step" && !isNew && !locking && h.parent ? (this.xray.get(h.parent) ?? 1) : 1;
         const op = (m.kind === "intro" ? clamp01((t - this.stepEnd + 0.7) / 0.5) : 1) * x;
         const lit = this.highlight?.has(it.ref) ?? false;
-        this.styleDrawable(h.d, { opacity: op, ink: isNew || locking || lit || m.kind !== "step", tint: lit ? 0.8 : 0, width: lit ? 1.7 : 1.25, through: x < 0.995 });
+        const glow = m.kind === "step" ? CAM_GLOW * this.camTurn(h, sIdx, t).glow : 0;
+        this.styleDrawable(h.d, { opacity: op, ink: isNew || locking || lit || m.kind !== "step", tint: lit ? 0.8 : glow, width: lit ? 1.7 : 1.25, through: x < 0.995 });
       }
     }
 
@@ -1902,6 +1922,53 @@ export class Stage {
         wantedLabels.set(p.type.id, { x: sp.x, y: sp.y, rot, text: p.type.label, sub: n > 1 ? `${n}×` : undefined, o: 1, lit: this.highlight?.has(p.type.id) ?? false });
       }
     }
+    // each cam the step turns gets a turning arrow round it while it turns, at a size that reads whatever the zoom:
+    // the cams are too small in the main view to see turning. One out of sight (its face turned away, or behind a board
+    // drawn solid) gets a fainter one, turning the way it looks from this side.
+    const rings: { d: string; o: number; flip: boolean; x: number; y: number; hidden: boolean }[] = [];
+    if (m.kind === "step" && step) {
+      const fade = this.opts.loop !== false && t > this.stepEnd + HOLD ? 1 - clamp01((t - this.stepEnd - HOLD) / FADE) : 1;
+      const look = this.camera.getWorldDirection(new THREE.Vector3());
+      const q = new THREE.Quaternion();
+      for (const h of this.hws) {
+        if (h.kind !== "cam" || !h.holder.visible) continue;
+        const c = this.camTurn(h, m.index, t);
+        if (c.ring < 0.01) continue;
+        h.holder.getWorldQuaternion(q);
+        const facing = Y.clone().applyQuaternion(q).dot(look);
+        const at = h.holder.getWorldPosition(new THREE.Vector3());
+        // cast from the camera's side toward it, so the boards' faces are met from the front
+        this.raycaster.set(at.clone().addScaledVector(look, -9000), look);
+        this.raycaster.far = 9000 - 1.5;
+        const solid = this.parts.filter((p) => p !== h.parent && p.node.visible && (this.xray.get(p) ?? 1) > 0.6).flatMap((p) => p.d.meshes);
+        const ownBoard = h.parent && (this.xray.get(h.parent) ?? 1) > 0.6;
+        const hidden = (facing > -0.2 && ownBoard) || this.raycaster.intersectObjects(solid, false).length > 0;
+        const sp = this.project(at);
+        const r = Math.max(13, 7.4 / Math.max(1e-6, this.camUnit * this.userZoom) + 7);
+        const k = easeInOut(c.k);
+        rings.push({ d: arcArrow(sp.x, sp.y, r, -2.4 + k * 0.7, 0.9 + k * 0.7), o: c.ring * fade * (hidden ? 0.4 : 1), flip: facing > 0, x: sp.x, y: sp.y, hidden });
+      }
+      // many at once: only those in sight, and not too many of those (with none in sight, the first few)
+      if (rings.length > CAM_RINGS / 2) {
+        const seen = rings.filter((r) => !r.hidden);
+        rings.splice(0, rings.length, ...(seen.length ? seen.slice(0, CAM_RINGS) : rings.slice(0, CAM_RINGS / 2)));
+      }
+    }
+    while (this.camRings.length < rings.length) {
+      const a = document.createElementNS(ns, "path") as SVGPathElement;
+      a.setAttribute("class", "arrow turn");
+      this.overlay.appendChild(a);
+      this.camRings.push(a);
+    }
+    this.camRings.forEach((a, i) => {
+      const w = rings[i];
+      a.style.opacity = w ? String(w.o) : "0";
+      if (!w) return;
+      a.setAttribute("d", w.d);
+      // seen from behind, a clockwise turn goes the other way round
+      if (w.flip) a.setAttribute("transform", `translate(${2 * w.x} 0) scale(-1 1)`);
+      else a.removeAttribute("transform");
+    });
     while (this.arrows.length < wanted.length) {
       const a = document.createElementNS(ns, "path") as SVGPathElement;
       a.setAttribute("class", "arrow");
@@ -2295,6 +2362,10 @@ export class Stage {
 const CALLOUT_TILT = 0.55;
 /** A screw going in through a fitting is seen more from the side, so the fitting round its hole shows as the manuals draw it. */
 const THROUGH_TILT = 0.9;
+/** The most cams turning at once that get a turning arrow in the main view (half as many when they are out of sight). */
+const CAM_RINGS = 8;
+/** How strongly a cam is tinted while it turns (Stage.camTurn), so it stands out in the main view. */
+const CAM_GLOW = 0.7;
 /** Half the width (mm) of the close-up on a screw going in through a fitting. */
 const THROUGH_SIZE = 34;
 /** Fittings that screws go in through, whose close-up shows a screw going into its hole in them (Stage.throughPick). */
