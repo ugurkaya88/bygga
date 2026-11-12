@@ -1,7 +1,7 @@
 import * as THREE from "three";
-import type { HwItem, HwKind, PartItem, PartState, PartSwing, PartType, Plan, Step, Vec3 } from "@/lib/types";
+import type { HwItem, HwKind, HwType, PartItem, PartState, PartSwing, PartType, Plan, Step, Vec3 } from "@/lib/types";
 import { POSE_EULER } from "@/lib/plan/math";
-import { Drawable, hwDrawable, markDrawable, partDrawable, wallDrawable } from "./drawable";
+import { Drawable, holeRings, hwDrawable, markDrawable, partDrawable, RUNNER, wallDrawable } from "./drawable";
 import { INK, INK_OLD } from "./materials";
 import { PALETTE } from "./palette";
 import { BRAND } from "@/lib/brand";
@@ -59,7 +59,7 @@ const SHIFT_DUR = 1.3; // the whole build pulled away from the wall or pushed ba
 const MARK_DUR = 0.7; // a pencil line drawn on
 const MARK_GAP = 0.4;
 const CAM_SMOOTH = 0.5; // seconds: how unhurried the view is when it moves to a new angle or framing
-const ZOOM_IN = 0.12; // the user's zoom, as a share of the step's framing: about 8 times closer for a detail
+const ZOOM_IN = 0.035; // the user's zoom, as a share of the step's framing: nearly 30 times closer, to see a screw in its hole
 const ZOOM_OUT = 2.5;
 const WHEEL_EASE = 0.08; // seconds: a turn of the wheel zooms in over a few frames instead of in one jump
 // a stick-on glide got ready before it goes on (HwItem.pad): held turned over PAD_HOVER mm out, its pad comes PAD_REACH
@@ -84,6 +84,13 @@ interface PNode {
 }
 interface HNode {
   item: HwItem;
+  kind: HwKind;
+  /** where it ends up in its part's frame (or the scene's): the plan's pos, or a screw set down on the runner it goes through */
+  at: THREE.Vector3;
+  /** what it takes up in its holder's frame, as it stands when it is in (Stage.throughPick) */
+  box: THREE.Box3;
+  /** its busiest spot in its holder's frame: a runner's flange plate, otherwise where it goes in */
+  spot: THREE.Vector3;
   d: Drawable;
   holder: THREE.Group;
   inner: THREE.Group;
@@ -270,7 +277,7 @@ export class Stage {
   private stack = new Map<string, Xf>();
   private layout = new Map<string, Xf>();
   /** The close-up: what it looks at, when it comes in, and whether it shows a push in and a turn. */
-  private focus?: { local: THREE.Vector3; dir: THREE.Vector3; size: number; delay: number; turn?: number; spin?: number; still?: boolean; pad?: boolean; lock?: boolean; cut?: PNode[] }; // lock: a cam pressed in earlier, only turned now (from delay); cut: parts left out of the circle, in the way of its fitting
+  private focus?: { local: THREE.Vector3; dir: THREE.Vector3; size: number; delay: number; turn?: number; spin?: number; still?: boolean; pad?: boolean; lock?: boolean; cut?: PNode[]; tilt?: number }; // tilt: how far the circle turns toward the main view (CALLOUT_TILT); lock: a cam pressed in earlier, only turned now (from delay); cut: parts left out of the circle, in the way of its fitting
   private marks: MNode[] = [];
   /** Where the whole build stands this step, moved from its place: from where the step before left it, to here. */
   private shiftFrom = new THREE.Vector3();
@@ -473,7 +480,17 @@ export class Stage {
       const parent = it.parent ? this.byKey.get(it.parent) : undefined;
       (parent ? parent.node : this.root).add(holder);
       d.meshes.forEach((m) => (m.userData.ref = it.ref));
-      this.hws.push({ item: it, d, holder, inner, parent, arm: d.root.getObjectByName("arm"), link: d.root.getObjectByName("link") });
+      this.hws.push({ item: it, kind: ht.kind, at: holder.position.clone(), box: new THREE.Box3(), spot: new THREE.Vector3(), d, holder, inner, parent, arm: d.root.getObjectByName("arm"), link: d.root.getObjectByName("link") });
+    }
+    this.fitRunners(hwTypes);
+    for (const h of this.hws) {
+      h.holder.updateMatrixWorld(true);
+      const inv = h.holder.matrixWorld.clone().invert();
+      h.d.root.traverse((o) => {
+        if (!(o instanceof THREE.Mesh)) return;
+        if (!o.geometry.boundingBox) o.geometry.computeBoundingBox();
+        h.box.union(o.geometry.boundingBox!.clone().applyMatrix4(inv.clone().multiply(o.matrixWorld)));
+      });
     }
     plan.steps.forEach((s, si) =>
       (s.marks ?? []).forEach((mk, i) => {
@@ -803,8 +820,11 @@ export class Stage {
       shown.splice(0, shown.length, ...drawn);
       // the first one still in sight once the step is done: not buried in a joint (a cam bolt a board then goes onto)
       // nor behind a board close in front of it. When none is, the first, with the parts in its way left out of the circle.
-      const pick = shown.find((c) => !this.inTheWay(c.h, s, plan).length) ?? shown[0];
-      const cut = pick ? this.inTheWay(pick.h, s, plan) : [];
+      // A step that puts screws in through a fitting (a runner, a hinge, a plate) shows one of them going into its hole
+      // there, as the manuals' close-ups do.
+      const through = this.throughPick(shown, s, plan);
+      const pick = through ?? shown.find((c) => !this.inTheWay(c.h, s, plan).length) ?? shown[0];
+      const cut = pick ? this.inTheWay(pick.h, s, plan, through ? THROUGH_TILT : CALLOUT_TILT) : [];
       const first = pick?.h;
       const firstAt = pick?.at ?? Infinity;
       const locks = !!pick?.locks;
@@ -833,7 +853,7 @@ export class Stage {
         }
       }
       if (first && this.callout) {
-        const loc = new THREE.Vector3(...first.item.pos);
+        const loc = first.at.clone();
         const dir = new THREE.Vector3(...first.item.dir).normalize();
         // a cam pressed in open: the circle takes in the edge of its board that its opening faces, where the bolt comes in
         let reach = 0;
@@ -853,13 +873,14 @@ export class Stage {
           }
         }
         const ht = plan.hardware.find((x) => x.id === first!.item.ref)!;
-        const size = calloutSize(ht.kind, ht.len, ht.dia);
+        // a screw going in through a fitting: wide enough to take in the fitting round its hole (a runner's wheel)
+        const size = through ? Math.max(THROUGH_SIZE, calloutSize(ht.kind, ht.len, ht.dia)) : calloutSize(ht.kind, ht.len, ht.dia);
         // a glide got ready in front of its place: the circle looks halfway out, wide enough for both
         const pad = !!first.item.pad;
         if (pad) loc.addScaledVector(dir, -PAD_HOVER / 2);
         // a cam pressed in open is only pushed in in its own step: its turn shows in its lock step
         const turn = first.item.lock && !locks ? undefined : first.item.turn;
-        this.focus = { local: loc, dir, size: pad ? 62 : reach ? Math.max(size, reach + 12) : size, delay: firstAt, turn, spin: first.item.spin, pad: pad || undefined, lock: locks || undefined, cut: cut.length ? cut : undefined };
+        this.focus = { local: loc, dir, size: pad ? 62 : reach ? Math.max(size, reach + 12) : size, delay: firstAt, turn, spin: first.item.spin, pad: pad || undefined, lock: locks || undefined, cut: cut.length ? cut : undefined, tilt: through ? THROUGH_TILT : undefined };
       } else if (newMarks.length && this.callout) {
         // a step that only marks the wall shows its first mark close up, drawn on
         const mk = newMarks[0];
@@ -889,9 +910,78 @@ export class Stage {
     }
   }
 
+  /**
+   * Turn each drawer runner so its front end (drawable.ts "runner", +z) faces the front (+z) and its track (-x) the floor
+   * as it hangs in the finished piece, and set the screws that go in through it down on its strip, a hole drawn under
+   * each: the plans place a runner's screws at whatever height their old bar drawing had.
+   */
+  private fitRunners(types: Map<string, HwType>) {
+    for (const r of this.hws) {
+      if (r.kind !== "runner") continue;
+      const q = r.parent ? quatFromEuler(r.parent.item.final.rot).multiply(r.holder.quaternion) : r.holder.quaternion.clone();
+      const fwd = new THREE.Vector3(0, 0, 1).applyQuaternion(q), side = new THREE.Vector3(1, 0, 0).applyQuaternion(q);
+      const sz = fwd.z < -0.5 ? -1 : 1, sx = side.y < -0.5 ? -1 : 1;
+      const L = Math.max(types.get(r.item.ref)?.len ?? 0, RUNNER.plate + 40);
+      r.d.root.scale.set(sx, 1, sz);
+      r.spot.set(0, RUNNER.top, (L / 2 - RUNNER.plate / 2) * sz);
+      r.holder.updateMatrix();
+      const inv = r.holder.matrix.clone().invert();
+      const dir = new THREE.Vector3(...r.item.dir).normalize();
+      const holes: THREE.Vector3[] = [];
+      let dia = 0;
+      for (const h of this.hws) {
+        if (h.kind !== "screw" || h.parent !== r.parent || (!r.parent && h.item.scene !== r.item.scene)) continue;
+        if (new THREE.Vector3(...h.item.dir).normalize().dot(dir) < 0.99) continue;
+        // in the drawing's own frame: on the strip or the plate, and not far above or below it
+        const v = h.at.clone().applyMatrix4(inv);
+        const x = v.x * sx, z = v.z * sz;
+        const onPlate = z >= L / 2 - RUNNER.plate && x <= RUNNER.half + RUNNER.wide - 3;
+        if (Math.abs(z) > L / 2 - 3 || x < -RUNNER.half + 4 || (x > RUNNER.half - 3 && !onPlate) || v.y < -8 || v.y > 25) continue;
+        v.y = RUNNER.top;
+        h.at.copy(v).applyMatrix4(r.holder.matrix);
+        h.holder.position.copy(h.at);
+        holes.push(new THREE.Vector3(x, RUNNER.top + 0.35, z));
+        dia = Math.max(dia, types.get(h.item.ref)?.dia ?? 0);
+      }
+      holeRings(r.d, holes, Math.max(dia, 3.2) + 0.7, Math.max(1.2, dia / 2));
+    }
+  }
+
+  /**
+   * Of the step's fittings the close-up can show (`shown`, first to go in first), a screw that goes in through another
+   * fitting on the same part, in sight at the end of step `s`: through the fitting the first such screw goes through,
+   * the one nearest its busiest spot (a runner's flange plate, a hinge's cup). None when no screw goes through one.
+   */
+  private throughPick<T extends { h: HNode; locks: boolean }>(shown: T[], s: number, plan: Plan): T | undefined {
+    const via = new Map<HNode, HNode>();
+    for (const c of shown) {
+      const f = c.h.kind === "screw" && !c.locks ? this.fittingThrough(c.h, s) : undefined;
+      if (f) via.set(c.h, f);
+    }
+    const first = shown.find((c) => via.has(c.h));
+    if (!first) return undefined;
+    const host = via.get(first.h)!;
+    const spot = host.spot.clone().applyMatrix4(new THREE.Matrix4().compose(host.holder.position, host.holder.quaternion, new THREE.Vector3(1, 1, 1)));
+    const near = shown.filter((c) => via.get(c.h) === host).sort((a, b) => a.h.at.distanceTo(spot) - b.h.at.distanceTo(spot));
+    return near.find((c) => !this.inTheWay(c.h, s, plan, THROUGH_TILT).length);
+  }
+
+  /** The fitting (a runner, a hinge, a plate, a bracket) that screw `sc` goes in through, in place by step `s`, if any. */
+  private fittingThrough(sc: HNode, s: number): HNode | undefined {
+    const dir = new THREE.Vector3(...sc.item.dir).normalize();
+    const one = new THREE.Vector3(1, 1, 1);
+    for (const f of this.hws) {
+      if (!THROUGH.has(f.kind) || f.parent !== sc.parent || f.item.step > s || (!f.parent && f.item.scene !== sc.item.scene)) continue;
+      if (new THREE.Vector3(...f.item.dir).normalize().dot(dir) < 0.99) continue;
+      const v = sc.at.clone().applyMatrix4(new THREE.Matrix4().compose(f.holder.position, f.holder.quaternion, one).invert());
+      if (f.box.clone().expandByScalar(1).containsPoint(v)) return f;
+    }
+    return undefined;
+  }
+
   /** A fitting's point and the way it goes in, where its part ends up in step `s` (the scene's frame). */
   private fittingAt(h: HNode, s: number) {
-    const at = new THREE.Vector3(...h.item.pos);
+    const at = h.at.clone();
     const dir = new THREE.Vector3(...h.item.dir).normalize();
     if (h.parent) {
       const { st } = this.stateAt(h.parent, s);
@@ -909,7 +999,7 @@ export class Stage {
    * just out of where it goes in (a board pushed onto a cam bolt or dowel), and those across the close-up's line of
    * sight from there, for as far as the close-up draws (a side panel in front of a drawer's side). None: it is in sight.
    */
-  private inTheWay(h: HNode, s: number, plan: Plan): PNode[] {
+  private inTheWay(h: HNode, s: number, plan: Plan, tilt = CALLOUT_TILT): PNode[] {
     const { at, dir } = this.fittingAt(h, s);
     const head = at.clone().addScaledVector(dir, -2);
     const others: { p: PNode; inv: THREE.Matrix4; half: THREE.Vector3 }[] = [];
@@ -928,7 +1018,7 @@ export class Stage {
     const { az, el } = this.camAngles();
     const look = new THREE.Vector3(Math.sin(az) * Math.cos(el), Math.sin(el), Math.cos(az) * Math.cos(el)).negate();
     look.applyQuaternion(this.targetPoseQ().invert());
-    const back = dir.clone().multiplyScalar(0.85).addScaledVector(look, 0.55).normalize().negate();
+    const back = dir.clone().multiplyScalar(0.85).addScaledVector(look, tilt).normalize().negate();
     const ht = plan.hardware.find((x) => x.id === h.item.ref);
     const reach = Math.max(120, (ht ? calloutSize(ht.kind, ht.len, ht.dia) : 55) * 2.2);
     const pt = new THREE.Vector3();
@@ -1969,7 +2059,7 @@ export class Stage {
     const world = this.root.localToWorld(f.local.clone());
     const dirW = f.dir.clone().applyQuaternion(this.root.quaternion).normalize();
     const camDir = this.camera.getWorldDirection(new THREE.Vector3());
-    const view = dirW.clone().multiplyScalar(0.85).addScaledVector(camDir, 0.55).normalize();
+    const view = dirW.clone().multiplyScalar(0.85).addScaledVector(camDir, f.tilt ?? CALLOUT_TILT).normalize();
     const cam = co.camera;
     const half = f.size;
     cam.left = -half;
@@ -2200,6 +2290,15 @@ export class Stage {
     this.tooltip?.remove();
   }
 }
+
+/** How far the close-up turns from looking along its fitting's way in toward the main view's (0.85 of the one, this of the other). */
+const CALLOUT_TILT = 0.55;
+/** A screw going in through a fitting is seen more from the side, so the fitting round its hole shows as the manuals draw it. */
+const THROUGH_TILT = 0.9;
+/** Half the width (mm) of the close-up on a screw going in through a fitting. */
+const THROUGH_SIZE = 34;
+/** Fittings that screws go in through, whose close-up shows a screw going into its hole in them (Stage.throughPick). */
+const THROUGH = new Set<HwKind>(["runner", "hinge", "hingePlate", "plate", "bracket", "angle", "cornerFoot", "flatHinge", "hook", "clip", "strap", "castor", "roller", "clamp", "foot", "gasLift"]);
 
 /** Half the width (mm) the close-up takes in round a fitting of this kind and size. */
 function calloutSize(kind: HwKind, len: number, dia: number) {

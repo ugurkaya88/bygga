@@ -126,7 +126,8 @@ export function partDrawable(p: PartType, holes: Hole[], o: { keepOff?: boolean 
   if (!o.keepOff) holes = holes.filter(near);
   if (holes.length) {
     const pts: number[] = [];
-    const seg = 14;
+    // round enough to stay a circle seen close up
+    const seg = 32;
     const n = new THREE.Vector3();
     const a = new THREE.Vector3();
     const b = new THREE.Vector3();
@@ -318,6 +319,32 @@ const ring = (x: number, y: number, z: number, r: number, n = 24) =>
   Array.from({ length: n }, (_, i) => new THREE.Vector3(x + r * Math.cos((i / n) * Math.PI * 2), y, z + r * Math.sin((i / n) * Math.PI * 2)));
 
 /**
+ * The holes in a fitting where screws go in through it (a drawer runner's strip): a ring of radius `r` round each point
+ * of `at` (the drawable's own frame, on a face looking along +y) and the bore of radius `bore` inside it.
+ */
+export function holeRings(d: Drawable, at: THREE.Vector3[], r: number, bore: number) {
+  if (!at.length) return;
+  const pts: number[] = [];
+  const n = 28;
+  for (const c of at)
+    for (const rr of [bore, r])
+      for (let i = 0; i < n; i++) {
+        const a0 = (i / n) * Math.PI * 2, a1 = ((i + 1) / n) * Math.PI * 2;
+        pts.push(c.x + rr * Math.cos(a0), c.y, c.z + rr * Math.sin(a0), c.x + rr * Math.cos(a1), c.y, c.z + rr * Math.sin(a1));
+      }
+  const lm = lineMaterial(1);
+  d.root.add(new LineSegments2(new LineSegmentsGeometry().setPositions(pts), lm));
+  d.thin.push(lm);
+}
+
+/**
+ * A drawer runner's drawing (hwDrawable "runner"), in mm: its strip `half` either side of the middle, `top` thick on the
+ * panel (and `back` more behind it, so a runner set a little off its panel still sits on it), the flange plate the last
+ * `plate` of its length and `wide` wider on the +x side, and its track standing `track` out of the panel.
+ */
+export const RUNNER = { half: 12, top: 1.5, back: 3.5, plate: 46, wide: 10, track: 13 };
+
+/**
  * Hardware is modelled along +Y with the origin on the surface it goes into.
  * Everything below y = 0 ends up inside the panel.
  */
@@ -385,10 +412,31 @@ export function hwDrawable(kind: HwKind, len: number, dia: number) {
       addSolid(d, "br:h", () => new THREE.BoxGeometry(40, 2, 32), metal, { position: [0, 1, 0] });
       addSolid(d, "br:v", () => new THREE.BoxGeometry(40, 42, 2), metal, { position: [0, 21, -15] });
       break;
-    case "runner":
-      addSolid(d, `run:${len}`, () => new THREE.BoxGeometry(20, 11, len), metal, { position: [0, 5.5, 0] });
-      addSolid(d, `run:lip:${len}`, () => new THREE.BoxGeometry(4, 6, len), metal, { position: [-8, 14, 0] });
+    case "runner": {
+      // the cabinet member of a roller runner, `len` long along z (its front end at +z), at its usual size whatever dia
+      // says: a strip of sheet steel on the panel, an L in section with its track standing out along the -x edge (the
+      // bottom, where the drawer runs), a wider flange plate at the front end with a round hole and a slot, and the
+      // nylon wheel on the plate in line with the track. The player turns it so its front end and track face the way
+      // they do in the finished piece, and draws a hole under each screw that goes in through it (stage.ts fitRunners).
+      const { half, top, back, plate, wide, track } = RUNNER;
+      const L = Math.max(len, plate + 40);
+      const z1 = L / 2, z0 = -L / 2, zp = z1 - plate;
+      addSolid(
+        d,
+        `run:strip:${L}`,
+        () => {
+          const s = rounded(new THREE.Shape(), [[-half, z0], [half, z0], [half, zp - 10], [half + wide, zp], [half + wide, z1], [-half, z1]], [0.6, 0.6, 2, 2, 4, 3]);
+          s.holes.push(new THREE.Path().absarc(half + wide / 2, z1 - 9, 2.2, 0, Math.PI * 2, true), slotPath(half + wide / 2, z1 - 28, 3.5, 2.2), slotPath(0, z0 + 12, 4, 2));
+          return slab(s, top + back, "x", "z", -back, 10);
+        },
+        metal,
+      );
+      addSolid(d, `run:track:${L}`, () => slab(sheet([[-half + 0.75, top - 0.3], [-half + 0.75, track]], 1.5), zp - z0, "x", "y", z0), metal);
+      // the wheel on its rivet, just over the track
+      addSolid(d, "run:wheel", cyl(9, 7, 28), plastic, { hull: "cyl", position: [-half + 10.2, top + 3.5, z1 - 13] });
+      addSolid(d, "run:rivet", cyl(3.2, 1.2, 18), metal, { hull: "cyl", position: [-half + 10.2, top + 7.6, z1 - 13] });
       break;
+    }
     case "knob":
       addSolid(d, "knob:stem", cyl(5.5, 12, 14), wood, { hull: "cyl", position: [0, 6, 0] });
       addSolid(d, "knob:head", () => new THREE.SphereGeometry(14, 22, 12, 0, Math.PI * 2, 0, Math.PI * 0.62), wood, { hull: "radial", position: [0, 14, 0], edges: false });

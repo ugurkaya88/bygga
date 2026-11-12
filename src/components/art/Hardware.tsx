@@ -105,12 +105,12 @@ function IsoSlab({ top, t }: { top: P3[]; t: number }) {
 }
 
 /** A cylinder standing up from y0 to y1 at (x, z): its side, then its top. */
-function IsoCyl({ x, z, r, y0, y1, top = METAL_LIT }: { x: number; z: number; r: number; y0: number; y1: number; top?: string }) {
+function IsoCyl({ x, z, r, y0, y1, top = METAL_LIT, side = METAL }: { x: number; z: number; r: number; y0: number; y1: number; top?: string; side?: string }) {
   const a = isoEllipse(x, y1, z, r),
     b = isoEllipse(x, y0, z, r);
   return (
     <>
-      <path d={`M${a.cx - a.rx} ${a.cy} L${b.cx - b.rx} ${b.cy} A${b.rx} ${b.ry} 0 0 0 ${b.cx + b.rx} ${b.cy} L${a.cx + a.rx} ${a.cy} Z`} fill={METAL} {...stroke} />
+      <path d={`M${a.cx - a.rx} ${a.cy} L${b.cx - b.rx} ${b.cy} A${b.rx} ${b.ry} 0 0 0 ${b.cx + b.rx} ${b.cy} L${a.cx + a.rx} ${a.cy} Z`} fill={side} {...stroke} />
       <ellipse {...a} fill={top} {...stroke} />
     </>
   );
@@ -287,21 +287,39 @@ function draw(kind: HwKind, len: number, dia: number): Drawn {
           </g>
         ),
       };
-    case "runner":
+    case "runner": {
+      // the cabinet member of a roller runner as the manuals draw it, lying on its back, shortened: the strip with its
+      // track standing along the far edge, the wider flange plate at the front end with a round hole and a slot, the
+      // nylon wheel on it in line with the track, and a screw hole where the strip meets the plate
+      const n = 6;
+      const corner = (cx: number, cz: number, r: number, a0: number): P3[] => Array.from({ length: n + 1 }, (_, k) => [cx + r * Math.cos(deg(a0 + (k * 90) / n)), 1.5, cz + r * Math.sin(deg(a0 + (k * 90) / n))]);
+      const strip: P3[] = [[0, 1.5, -12], ...corner(136, -8, 4, 270), ...corner(136, 18, 4, 0), [94, 1.5, 22], [84, 1.5, 12], [0, 1.5, 12]];
+      const slot: P3[] = [];
+      for (let k = 0; k <= 8; k++) slot.push([116 + 2.2 * Math.cos(deg(-90 + k * 22.5)), 1.5, 17 + 2.2 * Math.sin(deg(-90 + k * 22.5))]);
+      for (let k = 0; k <= 8; k++) slot.push([109 + 2.2 * Math.cos(deg(90 + k * 22.5)), 1.5, 17 + 2.2 * Math.sin(deg(90 + k * 22.5))]);
+      const back = slot.map(([x, y, z]): P3 => [x - 100, y, z - 17]);
+      const fit = isoFit([...strip, [0, 14.5, -12], [94, 14.5, -12], [127, 9.7, -11]]);
       return {
-        w: 120,
-        h: 22,
+        w: fit.w,
+        h: fit.h,
         scalable: false,
         node: (
-          <g>
-            <path d="M0 -6 H114 L120 0 L114 6 H0 Z" fill={METAL} {...stroke} />
-            <path d="M0 -10 H112 V-6 H0 Z" fill={METAL_LIT} {...stroke} />
-            {[16, 60, 104].map((x) => (
-              <circle key={x} cx={x} cy={0} r={2} fill={PAPER} {...stroke} />
-            ))}
+          <g transform={fit.at}>
+            <IsoSlab top={strip} t={1.5} />
+            <path d={isoPath([[0, 1.5, -10.5], [94, 1.5, -10.5], [94, 14.5, -10.5], [0, 14.5, -10.5]])} fill={METAL} {...stroke} />
+            <path d={isoPath([[0, 14.5, -12], [94, 14.5, -12], [94, 14.5, -10.5], [0, 14.5, -10.5]])} fill={METAL_LIT} {...stroke} />
+            <path d={isoPath([[94, 1.5, -12], [94, 1.5, -10.5], [94, 14.5, -10.5], [94, 14.5, -12]])} fill={METAL_LIT} {...inner} />
+            <ellipse {...isoEllipse(131, 1.5, 17, 2.2)} fill={PAPER} {...inner} />
+            <path d={isoPath(slot)} fill={PAPER} {...inner} />
+            <ellipse {...isoEllipse(96, 1.5, 0, 3.8)} fill={METAL} {...fine} />
+            <ellipse {...isoEllipse(96, 1.5, 0, 1.9)} fill={PAPER} {...inner} />
+            <path d={isoPath(back)} fill={PAPER} {...inner} />
+            <IsoCyl x={127} z={-2} r={9} y0={1.5} y1={8.5} top={PLASTIC} side={PLASTIC} />
+            <IsoCyl x={127} z={-2} r={3.2} y0={8.5} y1={9.7} />
           </g>
         ),
       };
+    }
     case "knob":
       return {
         w: 26,
