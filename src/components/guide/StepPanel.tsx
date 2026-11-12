@@ -235,19 +235,8 @@ export default function StepPanel({
             </p>
           )}
 
-          {next ? (
-            <button className="upnext" onClick={onNext}>
-              <span className="upnext-label">{t("step.upNext")}</span>
-              <span className="upnext-body">
-                <Thumb id={id} plan={plan} mode={{ kind: "step", index: index + 1 }} w={150} h={110} className="upnext-thumb" />
-                <span className="upnext-text">
-                  <b>{index + 2}</b>
-                  <span>{next.title}</span>
-                </span>
-                <IArrowRight size={18} />
-              </span>
-            </button>
-          ) : (
+          {/* the next step is the Done button at the foot; the last one says the build ends with it */}
+          {!next && (
             <div className="upnext final">
               <span className="upnext-label">{t("step.lastStep")}</span>
               <span className="upnext-body">
@@ -264,13 +253,33 @@ export default function StepPanel({
         <button className="btn round" onClick={onBack} aria-label={t("step.prev")} title={t("step.prevTitle")}>
           <IArrowLeft />
         </button>
-        <button className="btn primary big done-btn" onClick={onNext} title={t("step.nextTitle")}>
-          <span className="done-ico">
-            <ICheck size={18} strokeWidth={2.8} />
-          </span>
-          <span className="done-label">{last ? t("step.finish") : t("step.next")}</span>
-          <IArrowRight />
-        </button>
+        {next ? (
+          // done with this step: the button is the next step's card, its number, title and picture
+          <button className="btn primary big done-btn next-btn" onClick={onNext} title={t("step.nextTitle")} aria-label={`${t("step.next")}: ${index + 2}. ${next.title}`}>
+            <Thumb id={id} plan={plan} mode={{ kind: "step", index: index + 1 }} w={150} h={110} className="next-thumb" />
+            <span className="next-text">
+              <span className="next-label">
+                <span className="next-ico">
+                  <ICheck size={11} strokeWidth={3.4} />
+                </span>
+                {t("step.doneUpNext")}
+              </span>
+              <span className="next-title">
+                <b>{index + 2}</b>
+                {next.title}
+              </span>
+            </span>
+            <IArrowRight />
+          </button>
+        ) : (
+          <button className="btn primary big done-btn" onClick={onNext} title={t("step.nextTitle")}>
+            <span className="done-ico">
+              <ICheck size={18} strokeWidth={2.8} />
+            </span>
+            <span className="done-label">{last ? t("step.finish") : t("step.next")}</span>
+            <IArrowRight />
+          </button>
+        )}
       </div>
     </div>
   );

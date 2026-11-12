@@ -317,6 +317,7 @@ const en = {
   "step.nextTitle": "Next (right arrow or space)",
   "step.finish": "Done, finish up",
   "step.next": "Done, next step",
+  "step.doneUpNext": "Done, up next",
   "step.keysLeft": "Left arrow",
   "step.keysRight": "Right arrow",
   "step.keysMove": " to move",

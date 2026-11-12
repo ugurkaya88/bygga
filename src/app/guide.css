@@ -1982,6 +1982,80 @@ input[type="range"] {
   margin-left: 4px;
 }
 
+/* the Done button as the next step's card: its picture, a small label and the step's number and title */
+.done-btn.next-btn {
+  height: auto;
+  min-height: 72px;
+  padding: 8px 16px 8px 8px;
+  gap: 12px;
+}
+.next-btn .next-thumb {
+  width: 64px;
+  flex: 0 0 auto;
+  background-color: #fff;
+  border-radius: 10px;
+}
+.btn.primary.big > .next-text {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+  text-align: left;
+}
+.next-btn .next-label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12.5px;
+  font-weight: 600;
+  color: color-mix(in srgb, currentColor 75%, transparent);
+}
+/* the Done tick, small, before the label */
+.next-btn .next-ico {
+  display: grid;
+  place-items: center;
+  width: 17px;
+  height: 17px;
+  border-radius: 50%;
+  background: var(--accent);
+  color: var(--panel-done-ico, var(--ink));
+  flex: 0 0 auto;
+}
+.next-btn .next-title {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  overflow: hidden;
+  font-size: 15px;
+  font-weight: 700;
+  line-height: 1.3;
+  white-space: normal;
+  text-wrap: pretty;
+}
+.next-btn .next-title b {
+  font-family: var(--display);
+  font-size: 19px;
+  font-weight: 800;
+  margin-right: 7px;
+}
+.next-btn > svg {
+  flex: 0 0 auto;
+}
+@media (max-width: 420px) {
+  .done-btn.next-btn {
+    padding: 6px 12px 6px 6px;
+    gap: 10px;
+  }
+  .next-btn .next-thumb {
+    width: 52px;
+  }
+  .next-btn .next-title {
+    font-size: 14px;
+  }
+}
+
 /* ================= done ================= */
 
 .done-hero {

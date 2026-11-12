@@ -319,6 +319,7 @@ const tr: Record<keyof typeof en, string> = {
   "step.nextTitle": "Sonraki (sağ ok ya da boşluk)",
   "step.finish": "Bitti, tamamla",
   "step.next": "Bitti, sonraki adım",
+  "step.doneUpNext": "Bitti, sıradaki adım",
   "step.keysLeft": "Sol ok",
   "step.keysRight": "Sağ ok",
   "step.keysMove": " ile ilerle",
